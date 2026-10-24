@@ -25,10 +25,17 @@ SET_ITEM_ID_BASE = 2100600000  # faction_set_items ids; vanilla's are spread ove
 
 TEXTS = {
     "ru": {"factor": "Чумы Скролка", "bundle_title": "Чумные ритуалы Скролка",
-           "bundle_desc": "Скролк творит чумы за еду и золото, а не за заражения."},
+           "bundle_desc": "Скролк творит чумы за еду и золото, а не за заражения.",
+           "positive": "Пестиленс", "negative": "Не-Пестиленс",
+           "immunity": "Длительность неуязвимости заражённых отрядов и поселений: %d х."},
     "en": {"factor": "Skrolk's plagues", "bundle_title": "Skrolk's Plague Rites",
-           "bundle_desc": "Skrolk brews plagues for food and gold, not infections."},
+           "bundle_desc": "Skrolk brews plagues for food and gold, not infections.",
+           "positive": "Pestilens", "negative": "Non-Pestilens",
+           "immunity": "Immunity duration for infected forces and settlements: %d turns"},
 }
+# A vanilla line the plague tooltips share with Nurgle; reworded so it no longer names Nurgle
+# (still true for Nurgle's own plagues).
+IMMUNITY_LINE = "campaign_localised_strings_string_plague_infection_immunity_duration"
 
 
 def make_feature_tables(table):
@@ -50,7 +57,9 @@ def make_feature_tables(table):
             table_with(setups, *[row(setups, find(setups, "component", m), set=COMPONENT_SET) for m in MUTATIONS])]
 
     sets, items = t("faction_sets_tables"), t("faction_set_items_tables")
+    names = t("ui_faction_set_to_localised_names_tables")  # the "%s" in "Plague effects on %s forces"
     out += [table_with(sets, row(sets, key=POSITIVE_SET), row(sets, key=NEGATIVE_SET)),
+            table_with(names, row(names, faction_set=POSITIVE_SET), row(names, faction_set=NEGATIVE_SET)),
             table_with(items,
                        row(items, faction=PESTILENS, remove=False, set=POSITIVE_SET, id=SET_ITEM_ID_BASE),
                        row(items, remove=False, set=NEGATIVE_SET, id=SET_ITEM_ID_BASE + 1),
@@ -82,4 +91,7 @@ def make_feature_loc(lang):
     return [("pooled_resource_factors_display_name_negative_" + FOOD_FACTOR, text["factor"]),
             ("pooled_resource_factors_display_name_positive_" + FOOD_FACTOR, text["factor"]),
             ("effect_bundles_localised_title_" + FREE_RITUALS_BUNDLE, text["bundle_title"]),
-            ("effect_bundles_localised_description_" + FREE_RITUALS_BUNDLE, text["bundle_desc"])]
+            ("effect_bundles_localised_description_" + FREE_RITUALS_BUNDLE, text["bundle_desc"]),
+            ("ui_faction_set_to_localised_names_name_" + POSITIVE_SET, text["positive"]),
+            ("ui_faction_set_to_localised_names_name_" + NEGATIVE_SET, text["negative"]),
+            (IMMUNITY_LINE, text["immunity"])]

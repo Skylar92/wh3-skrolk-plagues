@@ -128,3 +128,18 @@ def test_nurgle_clone_names_copied_from_vanilla():
                "plague_components_description_wh3_dlc25_nur_battle_1": "Heart"}
     loc = dict(make_symptom_loc("en", vanilla))
     assert loc["plague_components_localised_name_skrolkpl_sym_battle_1"] == "Bleeding"
+
+
+def test_blessed_fields_mirror_normal_ones(tables):
+    # spike run 7: the window's effect columns showed effects only with the blessed fields filled
+    for r in rows(tables, "plague_effects_tables"):
+        assert r["positive_blessed_effect_for_factions"] == r["positive_effect_for_factions"]
+        assert r["negative_blessed_effect_for_factions"] == r["negative_effect_for_factions"]
+
+
+def test_black_death_spares_ours_from_all_attrition(tables):
+    j = rows(tables, "effect_bundles_to_effects_junctions_tables")
+    ours = {r["effect_key"] for r in j if r["effect_bundle_key"] == "skrolkpl_sym_black_death_pos"}
+    enemy = {r["effect_key"] for r in j if r["effect_bundle_key"] == "skrolkpl_sym_black_death_neg"}
+    assert ours == {"wh3_main_effect_attrition_immunity_all_except_plague", "wh2_dlc16_effect_attrition_immunity_plague"}
+    assert enemy == {"wh2_main_effect_force_all_campaign_enable_disease_attrition"}

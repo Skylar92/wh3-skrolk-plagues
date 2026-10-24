@@ -52,7 +52,7 @@ def test_level_from_text(g, text, step, level):
 
 
 @pytest.mark.parametrize("levels,price", [
-    ((0, 0, 0), (20, 4000)), ((3, 3, 3), (50, 8500)), ((1, 2, 0), (29, 5500)),
+    ((0, 0, 0), (20, 2500)), ((3, 3, 3), (38, 2500)), ((1, 2, 0), (26, 2500)),
 ])
 def test_price(g, levels, price):
     assert g.skrolkpl.price(*levels) == price
@@ -70,13 +70,12 @@ def test_pick_grid_shuffles(g):
     assert first != second
 
 
-def test_blocked_reason(g):
+def test_blocked_only_when_unaffordable(g):
+    # no cooldown (author, 2026-10-24): a plague may be made any time it can be paid for
     s = g.skrolkpl
-    s.persistent.cooldown_until = 15
-    assert s.blocked_reason(14, 100, 10000) == ("cooldown", 1)
-    assert s.blocked_reason(15, 100, 10000) is None
-    assert s.blocked_reason(15, 19, 10000) == ("food", 20)
-    assert s.blocked_reason(15, 100, 3999) == ("gold", 4000)
+    assert s.blocked_reason(100, 10000) is None
+    assert s.blocked_reason(19, 10000) == ("food", 20)
+    assert s.blocked_reason(100, 2499) == ("gold", 2500)
 
 
 def test_take_never_goes_negative(g):
@@ -104,15 +103,20 @@ def test_ai_pestilens_left_alone(g):
     assert calls(g) == []
 
 
-def test_plague_ritual_charges_price_and_starts_cooldown(g):
+def test_plague_ritual_charges_price(g):
     first_tick(g)
-    g.TURN = 10
-    g.FACTIONS[PESTILENS].treasury = 10000
     g.skrolkpl.pending_levels = g.lua.table_from([1, 2, 0])
     g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
-    assert ("faction_add_pooled_resource", PESTILENS, "skaven_food", "skrolkpl_plague_food", -29) in calls(g)
-    assert ("treasury_mod", PESTILENS, -5500) in calls(g)
-    assert g.skrolkpl.persistent.cooldown_until == 15
+    assert ("faction_add_pooled_resource", PESTILENS, "skaven_food", "skrolkpl_plague_food", -26) in calls(g)
+    assert ("treasury_mod", PESTILENS, -2500) in calls(g)
+
+
+def test_two_plagues_in_one_turn_both_charged(g):
+    first_tick(g)
+    g.FACTIONS[PESTILENS].treasury = 10000
+    g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
+    g.fire("RitualStartedEvent", g.ritual_context("wh3_main_ritual_nur_plague_target_settlement", PESTILENS))
+    assert [c for c in calls(g) if c[0] == "treasury_mod"] == [("treasury_mod", PESTILENS, -2500)] * 2
 
 
 def test_charge_capped_when_short(g):
@@ -143,24 +147,25 @@ def test_other_rituals_ignored(g):
 
 def test_state_roundtrip(g):
     first_tick(g)
-    g.skrolkpl.persistent.cooldown_until = 42
     grid = py_list(g.skrolkpl.persistent.grid)
     for f in g.SAVE_CALLBACKS.values():
         f({})
-    g.skrolkpl.persistent.cooldown_until = 0
     g.skrolkpl.persistent.grid = None
     for f in g.LOAD_CALLBACKS.values():
         f({})
-    assert g.skrolkpl.persistent.cooldown_until == 42
     assert py_list(g.skrolkpl.persistent.grid) == grid
 
 
 def test_fresh_state_when_nothing_saved(g):
     for f in g.LOAD_CALLBACKS.values():
         f({})
-    assert g.skrolkpl.persistent.cooldown_until == 0
+    assert g.skrolkpl.persistent.grid is None
     first_tick(g)
     assert len(py_list(g.skrolkpl.persistent.grid)) == 18
+
+
+def test_no_cooldown_left():
+    assert "cooldown_until" not in TEMPLATE and "COOLDOWN" not in TEMPLATE
 
 
 def test_no_plain_find():

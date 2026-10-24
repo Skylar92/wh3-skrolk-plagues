@@ -79,10 +79,12 @@ SYMPTOMS = [
                    "en": ("Slaves to the Last Breath", "Sick slaves work until they drop.")}),
     # Skaven symptoms
     Symptom("black_death", FORCE, SKILLS + "character_plague.png",
-            ours=(("wh2_dlc16_effect_attrition_immunity_plague", F, 1.0),),
+            # ours roam anywhere without attrition; infected enemies waste away
+            ours=(("wh3_main_effect_attrition_immunity_all_except_plague", F, 1.0),
+                  ("wh2_dlc16_effect_attrition_immunity_plague", F, 1.0)),
             enemy=(("wh2_main_effect_force_all_campaign_enable_disease_attrition", F, 1.0),),
-            names={"ru": ("Чёрная смерть", "Свои давно переболели; чужие мрут в походе."),
-                   "en": ("Black Death", "Ours have long survived it; theirs die on the march.")}),
+            names={"ru": ("Чёрная смерть", "Свои пройдут где угодно без потерь; заражённые враги гниют в походе."),
+                   "en": ("Black Death", "Ours march anywhere unharmed; infected foes rot on the march.")}),
     Symptom("red_pox", REGION, SKILLS + "campaign_public_order.png",
             ours=(("wh_main_effect_public_order_events", RP, 4.0),),
             enemy=(("wh_main_effect_public_order_events", RP, -6.0),),
@@ -131,8 +133,11 @@ def make_symptom_tables(table):
         force = key if s.kind == FORCE else None
         out[effect_setups.name].rows.append(_row(effect_setups, key=key, force_effects=force,
                                                  region_effects=None if force else key, garrison_effects=None))
+        # blessed = normal: the window's effect columns stayed empty without them (spike run 7)
         out[effects.name].rows.append(_row(effects, key=key, positive_effect_for_factions=key + "_pos",
-                                           negative_effect_for_factions=key + "_neg"))
+                                           negative_effect_for_factions=key + "_neg",
+                                           positive_blessed_effect_for_factions=key + "_pos",
+                                           negative_blessed_effect_for_factions=key + "_neg"))
         for side, fset, effs in (("_pos", POSITIVE_SET, s.ours), ("_neg", NEGATIVE_SET, s.enemy)):
             if s.nurgle:
                 bundle = "wh3_dlc25_nur_%s_%s" % (s.nurgle, "positive" if side == "_pos" else "negative")

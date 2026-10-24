@@ -73,3 +73,19 @@ def test_feature_loc_both_languages():
         loc = dict(make_feature_loc(lang))
         assert loc["pooled_resource_factors_display_name_negative_" + FOOD_FACTOR]
         assert loc["effect_bundles_localised_title_" + FREE_RITUALS_BUNDLE]
+
+
+def test_our_faction_sets_have_display_names(tables):
+    # plague tooltips read "Plague effects on %s forces and settlements" with the set's display name
+    assert {r["faction_set"] for r in rows(tables, "ui_faction_set_to_localised_names_tables")} == {
+        POSITIVE_SET, NEGATIVE_SET}
+    for lang in ("ru", "en"):
+        loc = dict(make_feature_loc(lang))
+        assert loc["ui_faction_set_to_localised_names_name_" + POSITIVE_SET]
+        assert loc["ui_faction_set_to_localised_names_name_" + NEGATIVE_SET]
+
+
+def test_immunity_line_does_not_mention_nurgle():
+    for lang in ("ru", "en"):
+        line = dict(make_feature_loc(lang))["campaign_localised_strings_string_plague_infection_immunity_duration"]
+        assert "%d" in line and "urgl" not in line and "ургл" not in line

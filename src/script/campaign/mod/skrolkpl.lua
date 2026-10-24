@@ -5,12 +5,12 @@
 --	A human Clan Pestilens gets Nurgle's plague window. The window's 18-slot
 --	symptom grid is filled from our catalogue, 18 symptoms at random, and is
 --	reshuffled after every plague, so the links between symptoms change. The
---	engine charges nothing for a plague, so this script does: food and gold,
---	base price plus the levels of the duration / spread / immunity slots, read
---	from the window when the player presses Infect. After a plague the next one
---	can be made only after COOLDOWN_TURNS turns; while blocked (cooldown, or
---	not enough food or gold) the Infect button is hidden and the window says
---	why. The window's Nurgle wording is replaced for Skrolk.
+--	engine charges nothing for a plague, so this script does: a flat price in
+--	food and gold, plus food for every level of the duration / spread /
+--	immunity slots, read from the window when the player presses Infect. There
+--	is no cooldown: the price is the limit. While the faction cannot pay, the
+--	Infect button is hidden and the window says why. The window's Nurgle
+--	wording is replaced for Skrolk.
 --
 ------------------------------------------------------------------------------
 
@@ -19,10 +19,8 @@ local SYMPTOM_KEYS = {} --@@SYMPTOM_KEYS@@
 
 local PESTILENS = "wh2_main_skv_clan_pestilens"
 local GRID_SIZE = 18
-local COOLDOWN_TURNS = 5
-local BASE_FOOD, BASE_GOLD = 20, 4000
-local LEVEL_FOOD = { [0] = 0, 3, 6, 10 }
-local LEVEL_GOLD = { [0] = 0, 500, 1000, 1500 }
+local BASE_FOOD, BASE_GOLD = 20, 2500
+local FOOD_PER_LEVEL = 2
 local FOOD_RESOURCE = "skaven_food"
 local FOOD_FACTOR = "skrolkpl_plague_food"
 local FREE_RITUALS_BUNDLE = "skrolkpl_free_plague_rituals"
@@ -48,7 +46,7 @@ local function log(msg)
 end
 
 skrolkpl = {
-	persistent = { grid = nil, cooldown_until = 0 },
+	persistent = { grid = nil },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
 }
 
@@ -66,12 +64,7 @@ function skrolkpl.level_from_text(text, step)
 end
 
 function skrolkpl.price(duration, spread, immunity)
-	local food, gold = BASE_FOOD, BASE_GOLD
-	for _, level in ipairs({ duration, spread, immunity }) do
-		food = food + LEVEL_FOOD[level]
-		gold = gold + LEVEL_GOLD[level]
-	end
-	return food, gold
+	return BASE_FOOD + FOOD_PER_LEVEL * (duration + spread + immunity), BASE_GOLD
 end
 
 -- `n` distinct keys in random order (Fisher-Yates over a copy).
@@ -87,10 +80,8 @@ function skrolkpl.pick_grid(keys, n)
 	return grid
 end
 
--- nil when a plague may be made now, else the reason and its number (turns left, or the price).
-function skrolkpl.blocked_reason(turn, food, gold)
-	local wait = skrolkpl.persistent.cooldown_until - turn
-	if wait > 0 then return "cooldown", wait end
+-- nil when a plague can be paid for, else the missing resource and the base price in it.
+function skrolkpl.blocked_reason(food, gold)
 	if food < BASE_FOOD then return "food", BASE_FOOD end
 	if gold < BASE_GOLD then return "gold", BASE_GOLD end
 	return nil
@@ -144,13 +135,13 @@ end
 local TEXT = {
 	ru = {
 		ours = "Клан Пестиленс", others = "Прочие фракции",
-		price = "%d еды, %d зол.", level_note = "Уровень слота: +3/+6/+10 еды, +500/+1000/+1500 зол.",
-		cooldown = "Новая чума созреет через %d ход(а)", food = "Нужно %d еды", gold = "Нужно %d золота",
+		price = "%d еды, %d зол.", level_note = "Каждый уровень слота: +2 еды",
+		food = "Нужно %d еды", gold = "Нужно %d золота",
 	},
 	en = {
 		ours = "Clan Pestilens", others = "Other factions",
-		price = "%d food, %d gold", level_note = "Slot level: +3/+6/+10 food, +500/+1000/+1500 gold",
-		cooldown = "Next plague ripens in %d turn(s)", food = "Needs %d food", gold = "Needs %d gold",
+		price = "%d food, %d gold", level_note = "Each slot level: +2 food",
+		food = "Needs %d food", gold = "Needs %d gold",
 	},
 }
 
@@ -194,7 +185,7 @@ local function refresh_panel()
 
 	local levels = read_levels() or { 0, 0, 0 }
 	local food, gold = skrolkpl.price(levels[1], levels[2], levels[3])
-	local reason, number = skrolkpl.blocked_reason(cm:model():turn_number(), food_of(faction), faction:treasury())
+	local reason, number = skrolkpl.blocked_reason(food_of(faction), faction:treasury())
 	local cost_text = reason and string.format(t[reason], number) or string.format(t.price, food, gold)
 	set_text(panel, { "holder_footer", "holder_total_cost", "dy_cost" }, cost_text)
 	local infect = find_uicomponent(panel, "button_infect_target")
@@ -213,7 +204,6 @@ end
 
 local function on_plague_ritual(faction)
 	charge(faction)
-	skrolkpl.persistent.cooldown_until = cm:model():turn_number() + COOLDOWN_TURNS
 	-- after the infection events this ritual triggers, as nurgle_plagues does
 	cm:callback(function()
 		reshuffle()
@@ -228,7 +218,7 @@ local function on_first_tick()
 	cm:apply_effect_bundle(FREE_RITUALS_BUNDLE, PESTILENS, 0)
 	unlock_components(faction)
 	if skrolkpl.persistent.grid then publish_grid() else reshuffle() end
-	log("ready, turn " .. cm:model():turn_number() .. ", cooldown until " .. skrolkpl.persistent.cooldown_until)
+	log("ready, turn " .. cm:model():turn_number())
 end
 
 local function listen(name, event, condition, callback)
@@ -275,5 +265,5 @@ cm:add_saving_game_callback(function(context)
 end)
 
 cm:add_loading_game_callback(function(context)
-	skrolkpl.persistent = cm:load_named_value(SAVE_KEY, { grid = nil, cooldown_until = 0 }, context)
+	skrolkpl.persistent = cm:load_named_value(SAVE_KEY, { grid = nil }, context)
 end)
