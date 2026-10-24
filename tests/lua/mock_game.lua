@@ -1,5 +1,6 @@
 -- Minimal stand-ins for the campaign API used by skrolkpl.lua.
 -- Every cm call that changes the game is recorded in CALLS as {name, args...}.
+SKROLKPL_NO_FILE_LOG = true
 CALLS = {}
 LISTENERS = {}
 FIRST_TICK = {}

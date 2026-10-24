@@ -35,6 +35,18 @@ local DIRECT_RITUALS = {
 local SLOTS = { "duration", "spread", "immunity" }
 local SAVE_KEY = "skrolkpl"
 
+-- Script log plus skrolkpl_log.txt next to the game executable (the script log is often off).
+local function log(msg)
+	msg = "Skrolk's Plagues: " .. tostring(msg)
+	out(msg)
+	if SKROLKPL_NO_FILE_LOG then return end
+	local ok, file = pcall(io.open, "skrolkpl_log.txt", "a")
+	if ok and file then
+		file:write(msg .. "\n")
+		file:close()
+	end
+end
+
 skrolkpl = {
 	persistent = { grid = nil, cooldown_until = 0 },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
@@ -196,7 +208,7 @@ local function charge(faction)
 	local take_food, take_gold = skrolkpl.take(food_of(faction), faction:treasury(), food, gold)
 	if take_food > 0 then cm:faction_add_pooled_resource(PESTILENS, FOOD_RESOURCE, FOOD_FACTOR, -take_food) end
 	if take_gold > 0 then cm:treasury_mod(PESTILENS, -take_gold) end
-	out("Skrolk's Plagues: charged " .. take_food .. " food, " .. take_gold .. " gold (price " .. food .. "/" .. gold .. ")")
+	log("charged " .. take_food .. " food, " .. take_gold .. " gold (price " .. food .. "/" .. gold .. ")")
 end
 
 local function on_plague_ritual(faction)
@@ -216,12 +228,13 @@ local function on_first_tick()
 	cm:apply_effect_bundle(FREE_RITUALS_BUNDLE, PESTILENS, 0)
 	unlock_components(faction)
 	if skrolkpl.persistent.grid then publish_grid() else reshuffle() end
+	log("ready, turn " .. cm:model():turn_number() .. ", cooldown until " .. skrolkpl.persistent.cooldown_until)
 end
 
 local function listen(name, event, condition, callback)
 	core:add_listener("skrolkpl_" .. name, event, condition, function(context)
 		local ok, err = pcall(callback, context)
-		if not ok then out("Skrolk's Plagues: " .. name .. " failed: " .. tostring(err)) end
+		if not ok then log(name .. " failed: " .. tostring(err)) end
 	end, true)
 end
 
@@ -254,7 +267,7 @@ listen("turn_start", "FactionTurnStart",
 
 cm:add_first_tick_callback(function()
 	local ok, err = pcall(on_first_tick)
-	if not ok then out("Skrolk's Plagues: first tick failed: " .. tostring(err)) end
+	if not ok then log("first tick failed: " .. tostring(err)) end
 end)
 
 cm:add_saving_game_callback(function(context)
