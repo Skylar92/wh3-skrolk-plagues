@@ -25,12 +25,6 @@ local SYMPTOMS = {
 local SPIKE_RITUAL_PREFIX = "skrolkpl_spike_ritual_"
 local NURGLE_RITUAL_PREFIX = "wh3_main_ritual_nur_plague_"
 local FREE_RITUALS_BUNDLE = "skrolkpl_spike_free_rituals"
--- What the plague window evaluates for its Infect / Summon buttons (dlc25_nurgle_plagues.twui.xml)
-local UI_PROBES = {
-	"Plagues.DirectRitualContext.Key", "Plagues.AgentRitualContext.Key", "Plagues.IsValidSelection",
-	"CanPerformRitual(Plagues.CompositionAndTargetContext)",
-	"Plagues.DirectRitualContext.ResourceTransactionContext(Plagues.CompositionAndTargetContext).TotalCostText",
-}
 local grid = nil -- current symptom order; nil until first placed
 local LOCK_PROBE = "skrolkpl_spike_sym_settlement_1" -- G6: locked while the panel is open
 local PARAMS = { "duration", "immunity", "spread" }
@@ -68,6 +62,11 @@ end
 local function pestilens()
 	local f = cm:get_faction(PESTILENS)
 	if is_human_pestilens(f) then return f end
+end
+
+local function log_purse(faction, label)
+	local food = try(try(try(faction, "pooled_resource_manager"), "resource", "skaven_food"), "value")
+	log(label .. ": treasury=" .. tostring(try(faction, "treasury")) .. " skaven_food=" .. tostring(food))
 end
 
 local function dump_components(faction)
@@ -168,7 +167,8 @@ add("ritual_started", "RitualStartedEvent", function(context)
 	local ours = string.sub(key, 1, #SPIKE_RITUAL_PREFIX) == SPIKE_RITUAL_PREFIX
 		or string.sub(key, 1, #NURGLE_RITUAL_PREFIX) == NURGLE_RITUAL_PREFIX
 	if ours and type(faction) ~= "string" and is_human_pestilens(faction) then
-		dump_components(faction)
+		log_purse(faction, "  purse at start")
+		cm:callback(function() log_purse(cm:get_faction(PESTILENS), "  purse 1s later") end, 1)
 		-- after the infection events, like nurgle_plagues does
 		cm:callback(function() shuffle_grid() end, 0.5)
 	end
@@ -230,28 +230,11 @@ add("panel_closed", "PanelClosedCampaign", function(context)
 	end
 end)
 
--- Evaluate a UI context expression; the API shape is not documented, so try the known variants.
-local function probe(expr)
-	local results = {}
-	local attempts = {
-		function() return common.get_context_value("CcoStaticObject", "", expr) end,
-		function() return common.get_context_value(expr) end,
-		function() return cco("CcoStaticObject", ""):Call(expr) end,
-	}
-	for i, f in ipairs(attempts) do
-		local ok, v = pcall(f)
-		results[#results + 1] = i .. ":" .. (ok and tostring(v) or ("err " .. tostring(v)))
-	end
-	return table.concat(results, " | ")
-end
-
 add("click", "ComponentLClickUp", function(context)
 	if not pestilens() then return end
 	log("click " .. uic_path(UIComponent(context.component)))
 	if context.string == "button_infect_target" or context.string == "button_summon_cultist" then
-		for _, expr in ipairs(UI_PROBES) do
-			log("  probe " .. expr .. " = " .. probe(expr))
-		end
+		log_purse(pestilens(), "  purse before click")
 	end
 end)
 

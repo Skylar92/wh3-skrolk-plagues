@@ -24,6 +24,7 @@ SPIKE_RITUAL = "skrolkpl_spike_ritual_"
 FACTOR_NAME = "Plague of Skrolk"
 POSITIVE_SET = "skrolkpl_positive"
 NEGATIVE_SET = "skrolkpl_negative"
+CULTIST = "wh3_main_nur_cultist_plague_ritual"
 FREE_RITUALS_BUNDLE = "skrolkpl_spike_free_rituals"
 FREE_RITUAL_EFFECTS = (("wh3_main_effect_force_direct_infection_cost", "faction_to_force_own"),
                        ("wh3_main_effect_force_direct_infection_cost_hidden", "faction_to_region_own"),
@@ -145,6 +146,16 @@ def make_spike_tables(table):
         new_group.rows.append(_row(group_rituals, campaign_group=FEATURE, ritual=NUR_RITUAL + name,
                                    unlock_mission=None, unlock_turn=0, initially_unlocked=True))
     out += [new_rituals, new_group]
+
+    # Run 4: Nurgle's agent ritual spawns its cultist subtype, which Pestilens may not field (crash).
+    # Permit it, and dress it as a Skaven plague priest for Pestilens only.
+    permitted = table("faction_agent_permitted_subtypes_tables")
+    out.append(_with(permitted, _row(permitted, agent="dignitary", faction=PESTILENS, subtype=CULTIST,
+                                     mod_disabled=False)))
+    art = table("campaign_character_art_sets_tables")
+    template = _find(art, "agent_subtype", CULTIST)[0]
+    out.append(_with(art, *[_row(art, template=template, faction=PESTILENS,
+                                 art_set_id="wh2_main_art_set_skv_plague_priest_0%d" % i) for i in (1, 2, 3)]))
 
     bundles = table("effect_bundles_tables")
     source = _find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur")[0]
