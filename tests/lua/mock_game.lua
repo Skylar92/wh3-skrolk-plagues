@@ -27,9 +27,25 @@ end
 
 function out(msg) LOG[#LOG + 1] = msg end
 
+-- Plague components of the human Pestilens: key -> {UNLOCKED=, COOLDOWN=, BLESSED=}.
+COMPONENTS = {}
+
+local function component_list()
+	local items = {}
+	for key, states in pairs(COMPONENTS) do
+		items[#items + 1] = {
+			key = function() return key end,
+			has_state = function(_, st) return states[st] == true end,
+		}
+	end
+	table.sort(items, function(a, b) return a.key() < b.key() end)
+	return { num_items = function() return #items end, item_at = function(_, i) return items[i + 1] end }
+end
+
 local function make_faction(key)
 	local data = FACTIONS[key]
 	return {
+		plagues = function() return { plague_component_list = function() return component_list() end } end,
 		name = function() return key end,
 		is_null_interface = function() return data == nil end,
 		is_human = function() return data.human end,
@@ -62,7 +78,11 @@ cm = {
 	end,
 	apply_effect_bundle = function(_, ...) rec("apply_effect_bundle", ...) end,
 	override_ui = function(_, ...) rec("override_ui", ...) end,
-	set_plague_component_state = function(_, faction, ...) rec("set_plague_component_state", faction:name(), ...) end,
+	set_plague_component_state = function(_, faction, key, state, value)
+		rec("set_plague_component_state", faction:name(), key, state, value)
+		COMPONENTS[key] = COMPONENTS[key] or {}
+		COMPONENTS[key][state] = value
+	end,
 	add_first_tick_callback = function(_, f) FIRST_TICK[#FIRST_TICK + 1] = f end,
 	add_saving_game_callback = function(_, f) SAVE_CALLBACKS[#SAVE_CALLBACKS + 1] = f end,
 	add_loading_game_callback = function(_, f) LOAD_CALLBACKS[#LOAD_CALLBACKS + 1] = f end,

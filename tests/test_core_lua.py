@@ -17,7 +17,7 @@ DIRECT = "wh3_main_ritual_nur_plague_target_army"
 def g():
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(MOCK)
-    lua.execute(render_core(TEMPLATE, KEYS))
+    lua.execute(render_core(TEMPLATE, KEYS, KEYS[0]))
     g = lua.globals()
     g.lua = lua
     return g
@@ -262,3 +262,100 @@ def test_level_note_uses_food_icon(g):
     first_tick(g)
     open_panel(g)
     assert g.UI["tx_mutation_description"].text == "Each slot level: +2 [[img:icon_skaven_food]][[/img]]"
+
+
+# --- start node, unlocking, guaranteed plague, blessed ---------------------
+
+START = "skrolkpl_sym_k00"  # the test catalogue's stand-in for the start symptom
+
+
+def test_slot_links_are_symmetric_and_connected(g):
+    links = {s: set(py_list(g.skrolkpl.neighbours(s))) for s in range(18)}
+    assert all(links[s] for s in links)
+    assert all(s in links[n] for s in links for n in links[s])
+    seen, todo = {0}, [0]
+    while todo:
+        for n in links[todo.pop()] - seen:
+            seen.add(n); todo.append(n)
+    assert seen == set(range(18))
+    assert links[0] == {2, 3, 8} and links[1] == {2, 4, 11}  # read from the window (probe, 2026-10-25)
+
+
+def lset(g, keys):
+    return g.lua.table_from({k: True for k in keys})
+
+
+def test_plague_path_needs_an_open_start_and_two_linked(g):
+    grid = lua_list(g, KEYS[:18])            # slot s holds KEYS[s]
+    usable = lset(g, KEYS[:18])
+    assert g.skrolkpl.has_plague_path(grid, lset(g, [KEYS[0]]), usable)
+    # start open but its neighbours (slots 2, 3, 8) unusable and nothing chains on
+    assert not g.skrolkpl.has_plague_path(grid, lset(g, [KEYS[0]]), lset(g, [KEYS[0], KEYS[5]]))
+    # nothing open
+    assert not g.skrolkpl.has_plague_path(grid, lset(g, []), usable)
+
+
+def test_build_grid_guarantees_a_plague_in_the_worst_case(g):
+    # only three symptoms are off cooldown and only one of them is open
+    usable_keys = [KEYS[3], KEYS[17], KEYS[24]]
+    for seed in range(20):
+        g.RANDOM = g.lua.table_from([(seed * 7 + i * 5) % 25 + 1 for i in range(200)])
+        grid = g.skrolkpl.build_grid(lua_list(g, KEYS), lset(g, [KEYS[24]]), lset(g, usable_keys))
+        assert len(py_list(grid)) == 18 and len(set(py_list(grid))) == 18
+        assert g.skrolkpl.has_plague_path(grid, lset(g, [KEYS[24]]), lset(g, usable_keys)), seed
+
+
+def states(g, key):
+    c = g.COMPONENTS[key]
+    return {k for k in ("UNLOCKED", "COOLDOWN", "BLESSED") if c[k]}
+
+
+def test_only_the_start_symptom_is_open_at_first(g):
+    first_tick(g)
+    open_keys = {k for k in KEYS if "UNLOCKED" in states(g, k)}
+    assert open_keys == {START}
+    assert "UNLOCKED" in states(g, "wh3_dlc25_nur_mutation_spread_3")
+
+
+def test_used_symptoms_become_open(g):
+    first_tick(g)
+    for k in (START, KEYS[5], KEYS[9]):
+        g.COMPONENTS[k]["COOLDOWN"] = True   # the engine marks the plague's symptoms
+    make_plague(g)
+    assert {k for k in KEYS if "UNLOCKED" in states(g, k)} == {START, KEYS[5], KEYS[9]}
+
+
+def test_an_extra_symptom_opens_when_every_open_one_rests(g):
+    first_tick(g)
+    g.COMPONENTS[START]["COOLDOWN"] = True
+    turn_start(g, 2)
+    open_free = [k for k in KEYS if "UNLOCKED" in states(g, k) and "COOLDOWN" not in states(g, k)]
+    assert len(open_free) == 1
+
+
+def test_every_layout_can_make_a_plague(g):
+    first_tick(g)
+    for turn in range(2, 12):
+        # rest a random-ish handful of symptoms each turn
+        for i, k in enumerate(KEYS):
+            g.COMPONENTS[k]["COOLDOWN"] = (i + turn) % 5 == 0  # five resting, as after a couple of plagues
+        turn_start(g, turn)
+        open_keys = [k for k in KEYS if "UNLOCKED" in states(g, k)]
+        usable = [k for k in KEYS if "COOLDOWN" not in states(g, k)]
+        assert g.skrolkpl.has_plague_path(g.skrolkpl.persistent.grid, lset(g, open_keys), lset(g, usable)), turn
+
+
+def test_one_blessed_symptom_in_the_grid(g):
+    first_tick(g)
+    turn_start(g, 2)
+    blessed = [k for k in KEYS if "BLESSED" in states(g, k)]
+    assert len(blessed) == 1 and blessed[0] in py_list(g.skrolkpl.persistent.grid)
+
+
+def test_save_from_before_start_node_migrates(g):
+    # older saves opened every symptom; on load only the start symptom stays open
+    g.SAVED = g.lua.table_from({"skrolkpl": g.lua.table_from({"grid": lua_list(g, KEYS[:18])})})
+    for f in g.LOAD_CALLBACKS.values():
+        f({})
+    first_tick(g)
+    assert {k for k in KEYS if "UNLOCKED" in states(g, k)} == {START}

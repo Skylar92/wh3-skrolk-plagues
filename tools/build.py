@@ -19,7 +19,7 @@ from tools.paths import GAME_DATA, ROOT, SCHEMA
 from tools.render import render_core
 from tools.rows import empty_like
 from tools.spike import make_spike_loc, make_spike_tables
-from tools.symptoms import make_symptom_loc, make_symptom_tables, symptom_keys
+from tools.symptoms import START_SYMPTOM, make_symptom_loc, make_symptom_tables, symptom_keys
 
 PACK_NAME = "skrolk_plagues.pack"
 TABLE_FILE = "skrolk_plagues"
@@ -71,7 +71,7 @@ def build(out_path, variant="release", lang="ru"):
         tables = merge_tables(make_feature_tables(table) + make_effect_tables(table) + make_symptom_tables(table))
         loc = make_feature_loc(lang) + make_effect_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
         core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
-        scripts = {CORE_SCRIPT: render_core(core, symptom_keys()).encode("utf-8"),
+        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM).encode("utf-8"),
                    CCO_PATH: make_plague_cco(read_pack(GAME_DATA / "ui.pack")[CCO_PATH].decode("utf-8")).encode("utf-8")}
     files = {f"db/{t.name}/{TABLE_FILE}": encode_table(schema, t) for t in tables}
     files[f"text/db/{TABLE_FILE}.loc"] = encode_loc(loc)

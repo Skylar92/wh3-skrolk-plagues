@@ -108,6 +108,8 @@ SYMPTOMS = [
                    "en": ("Horned Rat's Taint", "Whiskers")}),
 ]
 
+START_SYMPTOM = "skrolkpl_sym_sk_frenzy"  # the one symptom open at the start: Skrolk's own plague
+
 BUNDLE_TEMPLATES = {FORCE: "wh3_dlc25_nur_battle_1_positive", REGION: "wh3_dlc25_nur_settlement_1_positive"}
 
 
