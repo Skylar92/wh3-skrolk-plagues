@@ -189,7 +189,7 @@ def test_infect_stays_visible_but_disabled_when_unaffordable(g):
     infect = g.UI["button_infect_target"]
     assert infect.visible is True
     assert infect.disabled is True and infect.state == "inactive"
-    assert g.UI["dy_cost"].text == "Needs 20 food"
+    assert g.UI["dy_cost"].text == "Needs 20 [[img:icon_skaven_food]][[/img]]"
 
 
 def test_infect_enabled_and_price_shown_when_affordable(g):
@@ -198,7 +198,7 @@ def test_infect_enabled_and_price_shown_when_affordable(g):
     open_panel(g)
     infect = g.UI["button_infect_target"]
     assert infect.visible is True and infect.disabled is False
-    assert g.UI["dy_cost"].text == "20 food, 2500 gold"
+    assert g.UI["dy_cost"].text == "20 [[img:icon_skaven_food]][[/img]]  2500 [[img:icon_treasury]][[/img]]"
 
 
 def test_window_reopened_after_plague_to_show_new_grid(g):
@@ -215,7 +215,7 @@ def test_infect_off_when_slot_levels_make_it_unaffordable(g):
     g.UI_TEXT["copy_of_dy_value"] = "30"  # every slot at level 3 (spread 30%, others clamp): 20 + 2*9 = 38
     open_panel(g)
     assert g.UI["button_infect_target"].disabled is True
-    assert g.UI["dy_cost"].text == "Needs 38 food"
+    assert g.UI["dy_cost"].text == "Needs 38 [[img:icon_skaven_food]][[/img]]"
 
 
 def test_infect_switched_off_right_after_paying_when_next_plague_unaffordable(g):
@@ -226,10 +226,16 @@ def test_infect_switched_off_right_after_paying_when_next_plague_unaffordable(g)
     assert g.UI["button_infect_target"].disabled is False
     g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))  # pays 20 of the 30 food
     assert g.UI["button_infect_target"].disabled is True
-    assert g.UI["dy_cost"].text == "Needs 20 food"
+    assert g.UI["dy_cost"].text == "Needs 20 [[img:icon_skaven_food]][[/img]]"
 
 
 def test_summon_button_hidden(g):
     first_tick(g)
     open_panel(g)
     assert g.UI["button_summon_cultist"].visible is False
+
+
+def test_level_note_uses_food_icon(g):
+    first_tick(g)
+    open_panel(g)
+    assert g.UI["tx_mutation_description"].text == "Each slot level: +2 [[img:icon_skaven_food]][[/img]]"

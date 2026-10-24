@@ -132,16 +132,19 @@ local function russian()
 	return common.get_localised_string("cultures_name_wh_main_emp_empire") == "Империя"
 end
 
+local FOOD_ICON = "[[img:icon_skaven_food]][[/img]]"
+local GOLD_ICON = "[[img:icon_treasury]][[/img]]"
+
 local TEXT = {
 	ru = {
 		ours = "Клан Пестиленс", others = "Прочие фракции",
-		price = "%d еды, %d зол.", level_note = "Каждый уровень слота: +2 еды",
-		food = "Нужно %d еды", gold = "Нужно %d золота",
+		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Каждый уровень слота: +2 " .. FOOD_ICON,
+		food = "Нужно %d " .. FOOD_ICON, gold = "Нужно %d " .. GOLD_ICON,
 	},
 	en = {
 		ours = "Clan Pestilens", others = "Other factions",
-		price = "%d food, %d gold", level_note = "Each slot level: +2 food",
-		food = "Needs %d food", gold = "Needs %d gold",
+		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Each slot level: +2 " .. FOOD_ICON,
+		food = "Needs %d " .. FOOD_ICON, gold = "Needs %d " .. GOLD_ICON,
 	},
 }
 
@@ -264,6 +267,25 @@ listen("panel_opened", "PanelOpenedCampaign",
 		cm:callback(refresh_panel, 0.1) -- the panel may still be building
 	end)
 
+-- PROBE (temporary): what the window tells us about the selected symptoms, to fill the effect
+-- columns ourselves later. Logs ids, context object ids and states of the selection slots.
+local function probe_uic(label, uic)
+	local id = tostring(uic:Id())
+	local ok, cco = pcall(uic.GetContextObjectId, uic, "CcoPlagueComponentUiDataRecord")
+	local ok2, cco2 = pcall(uic.GetContextObjectId, uic, "CcoCampaignPlagueComponent")
+	log("probe " .. label .. " " .. id .. " state=" .. tostring(uic:CurrentState())
+		.. " cco=" .. tostring(ok and cco) .. " cco2=" .. tostring(ok2 and cco2))
+end
+
+local function probe_selection(clicked)
+	if clicked then probe_uic("clicked", clicked) end
+	local list = find_uicomponent(core:get_ui_root(), PANEL, "holder_symptoms", "symptoms_list")
+	if not list then log("probe: no symptoms_list") return end
+	for i = 0, list:ChildCount() - 1 do
+		probe_uic("slot" .. i, UIComponent(list:Find(i)))
+	end
+end
+
 listen("panel_click", "ComponentLClickUp",
 	function() return human_pestilens() ~= nil and find_uicomponent(core:get_ui_root(), PANEL) ~= nil end,
 	function(context)
@@ -271,6 +293,8 @@ listen("panel_click", "ComponentLClickUp",
 			skrolkpl.pending_levels = read_levels()
 		end
 		cm:callback(refresh_panel, 0.1) -- after the window applied the click
+		local clicked = context.component and UIComponent(context.component)
+		cm:callback(function() pcall(probe_selection, clicked) end, 0.15) -- PROBE
 	end)
 
 listen("turn_start", "FactionTurnStart",
