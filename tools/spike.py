@@ -14,7 +14,10 @@ SYMPTOM_COST = "skrolkpl_spike_symptom"
 RITUAL_COST = "skrolkpl_spike_ritual"
 FOOD_FACTOR = "skrolkpl_plague"
 FOOD_JUNCTION = "skrolkpl_food_plague"
-SPIKE_SYMPTOMS = ("battle_1", "force_4", "settlement_1")  # wh3_dlc25_nur_<id>
+# wh3_dlc25_nur_<id>, in vanilla nurgle_plagues.symptoms_list order: the window's 18-slot symptom grid
+SPIKE_SYMPTOMS = ("battle_2", "settlement_4", "force_2", "battle_7", "battle_6", "battle_1", "settlement_5",
+                  "force_3", "battle_4", "force_1", "force_6", "settlement_1", "settlement_2", "battle_5",
+                  "force_5", "settlement_3", "force_4", "battle_3")
 RITUALS = ("agent_army", "agent_settlement", "target_army", "target_settlement")
 NUR_RITUAL = "wh3_main_ritual_nur_plague_"
 SPIKE_RITUAL = "skrolkpl_spike_ritual_"

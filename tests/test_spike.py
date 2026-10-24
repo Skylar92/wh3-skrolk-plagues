@@ -43,10 +43,26 @@ def test_spike_has_four_plague_rituals(tables):
     assert bound == set(rituals)
 
 
+NURGLE_GRID = ("battle_2", "settlement_4", "force_2", "battle_7", "battle_6", "battle_1", "settlement_5",
+               "force_3", "battle_4", "force_1", "force_6", "settlement_1", "settlement_2", "battle_5",
+               "force_5", "settlement_3", "force_4", "battle_3")  # nurgle_plagues.symptoms_list order
+
+
+def test_spike_clones_all_eighteen_grid_symptoms(tables):
+    # the plague window's symptom grid has 18 slots, filled from the script's symptom list
+    syms = [r["key"] for r in rows(tables, "plague_components_tables") if r["type"] == "SYMPTOM"]
+    assert sorted(syms) == sorted("skrolkpl_spike_sym_" + s for s in NURGLE_GRID)
+
+
+def test_spike_script_grid_matches_components():
+    from tools.paths import ROOT
+    lua = (ROOT / "src/script/campaign/mod/skrolkpl_spike.lua").read_text(encoding="utf-8")
+    for s in NURGLE_GRID:
+        assert '"skrolkpl_spike_sym_%s"' % s in lua
+
+
 def test_spike_symptom_costs_food_and_gold(tables):
     syms = [r for r in rows(tables, "plague_components_tables") if r["type"] == "SYMPTOM"]
-    assert {r["key"] for r in syms} == {"skrolkpl_spike_sym_battle_1", "skrolkpl_spike_sym_force_4",
-                                        "skrolkpl_spike_sym_settlement_1"}
     assert {r["cost"] for r in syms} == {"skrolkpl_spike_symptom"}
     costs = {r["id"]: r for r in rows(tables, "resource_costs_tables")}
     assert costs["skrolkpl_spike_symptom"]["treasury_cost"] == -1000

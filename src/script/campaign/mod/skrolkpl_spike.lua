@@ -12,7 +12,18 @@
 
 local PESTILENS = "wh2_main_skv_clan_pestilens"
 local PLAGUE_BUTTON_OVERRIDE = "disable_nurgle_plagues_button"
-local SYMPTOMS = { "skrolkpl_spike_sym_battle_1", "skrolkpl_spike_sym_force_4", "skrolkpl_spike_sym_settlement_1" }
+-- The plague window's 18-slot symptom grid is filled from this list (via a context value, as
+-- nurgle_plagues does); reshuffling it changes which symptoms are linked.
+local SYMPTOMS = {
+	"skrolkpl_spike_sym_battle_2", "skrolkpl_spike_sym_settlement_4", "skrolkpl_spike_sym_force_2",
+	"skrolkpl_spike_sym_battle_7", "skrolkpl_spike_sym_battle_6", "skrolkpl_spike_sym_battle_1",
+	"skrolkpl_spike_sym_settlement_5", "skrolkpl_spike_sym_force_3", "skrolkpl_spike_sym_battle_4",
+	"skrolkpl_spike_sym_force_1", "skrolkpl_spike_sym_force_6", "skrolkpl_spike_sym_settlement_1",
+	"skrolkpl_spike_sym_settlement_2", "skrolkpl_spike_sym_battle_5", "skrolkpl_spike_sym_force_5",
+	"skrolkpl_spike_sym_settlement_3", "skrolkpl_spike_sym_force_4", "skrolkpl_spike_sym_battle_3",
+}
+local SPIKE_RITUAL_PREFIX = "skrolkpl_spike_ritual_"
+local grid = nil -- current symptom order; nil until first placed
 local LOCK_PROBE = "skrolkpl_spike_sym_settlement_1" -- G6: locked while the panel is open
 local PARAMS = { "duration", "immunity", "spread" }
 
@@ -99,14 +110,39 @@ local function dump_tree(uic, depth, max_depth)
 	end
 end
 
+local function publish_grid()
+	common.set_context_value("random_plague_component_list_" .. PESTILENS, grid)
+	common.set_context_value("random_plague_creation_count_" .. PESTILENS, 1)
+	log("grid: " .. table.concat(grid, ", "))
+end
+
+local function shuffle_grid()
+	grid = {}
+	for i, key in ipairs(SYMPTOMS) do grid[i] = key end
+	for i = #grid, 2, -1 do
+		local j = cm:random_number(i)
+		grid[i], grid[j] = grid[j], grid[i]
+	end
+	publish_grid()
+end
+
 local function on_first_tick()
 	local faction = pestilens()
 	if not faction then return end
 	log("first tick, turn " .. cm:model():turn_number())
 	cm:override_ui(PLAGUE_BUTTON_OVERRIDE, false)
 	unlock_all(faction)
+	if grid then publish_grid() else shuffle_grid() end
 	dump_components(faction)
 end
+
+cm:add_saving_game_callback(function(context)
+	cm:save_named_value("skrolkpl_spike_grid", grid, context)
+end)
+
+cm:add_loading_game_callback(function(context)
+	grid = cm:load_named_value("skrolkpl_spike_grid", nil, context)
+end)
 
 local function add(name, event, cb)
 	core:add_listener("skrolkpl_spike_" .. name, event, true, function(context)
@@ -117,8 +153,14 @@ end
 
 add("ritual_started", "RitualStartedEvent", function(context)
 	local ritual = try(context, "ritual")
-	log("RitualStartedEvent ritual=" .. tostring(try(ritual, "ritual_key")) .. " faction="
-		.. name_of(try(context, "performing_faction")) .. " plague=" .. name_of(try(context, "plague")))
+	local key = tostring(try(ritual, "ritual_key"))
+	local faction = try(context, "performing_faction")
+	log("RitualStartedEvent ritual=" .. key .. " faction=" .. name_of(faction) .. " plague=" .. name_of(try(context, "plague")))
+	if string.sub(key, 1, #SPIKE_RITUAL_PREFIX) == SPIKE_RITUAL_PREFIX and type(faction) ~= "string" and is_human_pestilens(faction) then
+		dump_components(faction)
+		-- after the infection events, like nurgle_plagues does
+		cm:callback(function() shuffle_grid() end, 0.5)
+	end
 end)
 
 add("ritual_completed", "RitualCompletedEvent", function(context)
