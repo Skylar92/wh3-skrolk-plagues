@@ -71,11 +71,13 @@ def test_pick_grid_shuffles(g):
 
 
 def test_blocked_only_when_unaffordable(g):
-    # no cooldown (author, 2026-10-24): a plague may be made any time it can be paid for
+    # no cooldown (author, 2026-10-24): a plague may be made any time its full price can be paid
     s = g.skrolkpl
-    assert s.blocked_reason(100, 10000) is None
-    assert s.blocked_reason(19, 10000) == ("food", 20)
-    assert s.blocked_reason(100, 2499) == ("gold", 2500)
+    assert s.blocked_reason(100, 10000, 20, 2500) is None
+    assert s.blocked_reason(19, 10000, 20, 2500) == ("food", 20)
+    assert s.blocked_reason(100, 2499, 20, 2500) == ("gold", 2500)
+    # slot levels count: 32 food is enough for a bare plague but not for one costing 38
+    assert s.blocked_reason(32, 10000, 38, 2500) == ("food", 38)
 
 
 def test_take_never_goes_negative(g):
@@ -205,6 +207,15 @@ def test_window_reopened_after_plague_to_show_new_grid(g):
     g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
     # the window reads the grid only when it opens: close it with its own button, reopen from the HUD
     assert calls(g, "click") == [("click", "button_close"), ("click", "button_nurgle_plagues")]
+
+
+def test_infect_off_when_slot_levels_make_it_unaffordable(g):
+    first_tick(g)
+    g.FACTIONS[PESTILENS].food = 32
+    g.UI_TEXT["copy_of_dy_value"] = "30"  # every slot at level 3 (spread 30%, others clamp): 20 + 2*9 = 38
+    open_panel(g)
+    assert g.UI["button_infect_target"].disabled is True
+    assert g.UI["dy_cost"].text == "Needs 38 food"
 
 
 def test_infect_switched_off_right_after_paying_when_next_plague_unaffordable(g):

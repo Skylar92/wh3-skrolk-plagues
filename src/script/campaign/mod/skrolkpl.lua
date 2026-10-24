@@ -80,10 +80,10 @@ function skrolkpl.pick_grid(keys, n)
 	return grid
 end
 
--- nil when a plague can be paid for, else the missing resource and the base price in it.
-function skrolkpl.blocked_reason(food, gold)
-	if food < BASE_FOOD then return "food", BASE_FOOD end
-	if gold < BASE_GOLD then return "gold", BASE_GOLD end
+-- nil when the plague's full price can be paid, else the missing resource and the price in it.
+function skrolkpl.blocked_reason(food, gold, price_food, price_gold)
+	if food < price_food then return "food", price_food end
+	if gold < price_gold then return "gold", price_gold end
 	return nil
 end
 
@@ -185,7 +185,7 @@ local function refresh_panel()
 
 	local levels = read_levels() or { 0, 0, 0 }
 	local food, gold = skrolkpl.price(levels[1], levels[2], levels[3])
-	local reason, number = skrolkpl.blocked_reason(food_of(faction), faction:treasury())
+	local reason, number = skrolkpl.blocked_reason(food_of(faction), faction:treasury(), food, gold)
 	local cost_text = reason and string.format(t[reason], number) or string.format(t.price, food, gold)
 	set_text(panel, { "holder_footer", "holder_total_cost", "dy_cost" }, cost_text)
 	-- Infect stays on screen; it is only switched off while the plague cannot be paid for.

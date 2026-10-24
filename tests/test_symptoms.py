@@ -150,3 +150,13 @@ def test_black_death_spares_ours_from_all_attrition(tables):
     enemy = {r["effect_key"] for r in j if r["effect_bundle_key"] == "skrolkpl_sym_black_death_neg"}
     assert ours == {"skrolkpl_effect_attrition_immunity"}  # one line: "immune to attrition"
     assert enemy == {"wh2_main_effect_force_all_campaign_enable_disease_attrition"}
+
+
+def test_descriptions_are_body_parts():
+    # the window names a plague from the symptoms' names and descriptions ("Sweating Eyes");
+    # Nurgle's descriptions are body parts, so ours must be one short word too
+    for lang in ("ru", "en"):
+        for s in SYMPTOMS:
+            if s.nurgle is None:
+                part = s.names[lang][1]
+                assert " " not in part and len(part) <= 12, (s.id, part)
