@@ -80,10 +80,34 @@ core = {
 	add_listener = function(_, name, event, cond, cb, persistent)
 		LISTENERS[#LISTENERS + 1] = { name = name, event = event, cond = cond, cb = cb }
 	end,
-	get_ui_root = function() return nil end,
+	get_ui_root = function() return {} end,
 }
 
-function find_uicomponent() return nil end
+-- A fake UI: when PANEL_OPEN, find_uicomponent(parent, ..., id) returns the component named by the
+-- last id, creating it on first use. Components record visibility, state, disabled flag and clicks.
+UI = {}
+PANEL_OPEN = false
+UI_TEXT = {}   -- id -> state text the fake component reports
+
+local function make_uic(id)
+	local uic = { id = id, visible = true, state = "active", disabled = false, clicks = 0 }
+	function uic:SetVisible(v) self.visible = v end
+	function uic:SetState(s) self.state = s end
+	function uic:SetDisabled(d) self.disabled = d end
+	function uic:SetStateText(t) self.text = t end
+	function uic:GetStateText() return UI_TEXT[self.id] or "" end
+	function uic:SimulateLClick() self.clicks = self.clicks + 1; rec("click", self.id) end
+	return uic
+end
+
+function find_uicomponent(parent, ...)
+	if not PANEL_OPEN then return nil end
+	local ids = {...}
+	local id = ids[#ids]
+	if id == nil then return nil end
+	UI[id] = UI[id] or make_uic(id)
+	return UI[id]
+end
 
 -- Fire an event at every listener registered for it.
 function fire(event, context)

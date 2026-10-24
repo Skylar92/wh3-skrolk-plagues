@@ -188,8 +188,23 @@ local function refresh_panel()
 	local reason, number = skrolkpl.blocked_reason(food_of(faction), faction:treasury())
 	local cost_text = reason and string.format(t[reason], number) or string.format(t.price, food, gold)
 	set_text(panel, { "holder_footer", "holder_total_cost", "dy_cost" }, cost_text)
+	-- Infect stays on screen; it is only switched off while the plague cannot be paid for.
 	local infect = find_uicomponent(panel, "button_infect_target")
-	if infect then infect:SetVisible(reason == nil) end
+	if infect then
+		infect:SetVisible(true)
+		pcall(infect.SetDisabled, infect, reason ~= nil)
+		if reason then pcall(infect.SetState, infect, "inactive") end
+	end
+end
+
+-- The window reads the symptom grid only when it opens, so show a new grid by reopening it.
+local function reopen_panel()
+	if not find_uicomponent(core:get_ui_root(), PANEL) then return end
+	local button = find_uicomponent(core:get_ui_root(), "hud_campaign", "faction_buttons_docker",
+		"button_group_management", "button_nurgle_plagues")
+	if not button then return end
+	button:SimulateLClick()               -- close
+	cm:callback(function() button:SimulateLClick() end, 0.2) -- open again with the new grid
 end
 
 local function charge(faction)
@@ -207,7 +222,7 @@ local function on_plague_ritual(faction)
 	-- after the infection events this ritual triggers, as nurgle_plagues does
 	cm:callback(function()
 		reshuffle()
-		refresh_panel()
+		reopen_panel()
 	end, 0.5)
 end
 

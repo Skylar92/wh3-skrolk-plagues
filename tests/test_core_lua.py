@@ -171,3 +171,43 @@ def test_no_cooldown_left():
 def test_no_plain_find():
     import re
     assert not re.search(r"find\([^)]*,\s*1\s*,\s*true\s*\)", TEMPLATE)
+
+
+# --- the plague window ----------------------------------------------------
+
+def open_panel(g):
+    g.PANEL_OPEN = True
+    g.fire("PanelOpenedCampaign", g.lua.table_from({"string": "dlc25_nurgle_plagues"}))
+
+
+def test_infect_stays_visible_but_disabled_when_unaffordable(g):
+    first_tick(g)
+    g.FACTIONS[PESTILENS].food = 5
+    open_panel(g)
+    infect = g.UI["button_infect_target"]
+    assert infect.visible is True
+    assert infect.disabled is True and infect.state == "inactive"
+    assert g.UI["dy_cost"].text == "Needs 20 food"
+
+
+def test_infect_enabled_and_price_shown_when_affordable(g):
+    first_tick(g)
+    g.UI_TEXT["copy_of_dy_value"] = "+0%"  # the fake UI answers every slot with this text
+    open_panel(g)
+    infect = g.UI["button_infect_target"]
+    assert infect.visible is True and infect.disabled is False
+    assert g.UI["dy_cost"].text == "20 food, 2500 gold"
+
+
+def test_window_reopened_after_plague_to_show_new_grid(g):
+    first_tick(g)
+    open_panel(g)
+    g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
+    # the window reads the grid only when it opens: close and reopen it
+    assert calls(g, "click") == [("click", "button_nurgle_plagues"), ("click", "button_nurgle_plagues")]
+
+
+def test_summon_button_hidden(g):
+    first_tick(g)
+    open_panel(g)
+    assert g.UI["button_summon_cultist"].visible is False
