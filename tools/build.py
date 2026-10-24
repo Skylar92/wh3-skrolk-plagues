@@ -1,23 +1,30 @@
 """Build skrolk_plagues.pack from the installed game's vanilla data.
 
-usage: python -m tools.build --spike [--install]
+usage: python -m tools.build [--spike] [--lang ru|en] [--install]
 
 Writes dist/skrolk_plagues.pack; --install copies it into the game's data folder.
-Only the spike variant exists until the in-game gate (plan Task 2) is passed.
+The release pack is the default; --spike builds the throwaway probe from plan Task 2.
+--lang picks the language of our texts (db loc holds one text per key).
 """
 import shutil
 import sys
 
 from tools.dbtable import decode_table, encode_table, load_schema
+from tools.feature import make_feature_loc, make_feature_tables
 from tools.loc import decode_loc, encode_loc
 from tools.packfile import read_pack, write_pack
 from tools.paths import GAME_DATA, ROOT, SCHEMA
+from tools.render import render_core
+from tools.rows import empty_like
 from tools.spike import make_spike_loc, make_spike_tables
+from tools.symptoms import make_symptom_loc, make_symptom_tables, symptom_keys
 
 PACK_NAME = "skrolk_plagues.pack"
 TABLE_FILE = "skrolk_plagues"
 SPIKE_SCRIPT = "script/campaign/mod/skrolkpl_spike.lua"
-VARIANTS = ("spike",)
+CORE_SCRIPT = "script/campaign/mod/skrolkpl.lua"
+VARIANTS = ("spike", "release")
+LANGS = ("ru", "en")
 
 
 def _vanilla_tables():
@@ -30,31 +37,52 @@ def _vanilla_tables():
     return schema, table
 
 
-def _vanilla_loc():
+def _vanilla_loc(lang):
     entries = {}
-    for path, data in read_pack(GAME_DATA / "local_en.pack").items():
+    for path, data in read_pack(GAME_DATA / f"local_{lang}.pack").items():
         if path.endswith(".loc"):
             entries.update(decode_loc(data))
     return entries
 
 
-def build(out_path, variant="spike"):
+def merge_tables(tables):
+    """One table per name: rows of same-named tables concatenated in order."""
+    merged = {}
+    for t in tables:
+        if t.name not in merged:
+            merged[t.name] = empty_like(t)
+        merged[t.name].rows.extend(t.rows)
+    return list(merged.values())
+
+
+def build(out_path, variant="release", lang="ru"):
     if variant not in VARIANTS:
         raise ValueError("unknown variant: %s" % variant)
+    if lang not in LANGS:
+        raise ValueError("unknown language: %s" % lang)
     schema, table = _vanilla_tables()
-    files = {f"db/{t.name}/{TABLE_FILE}": encode_table(schema, t) for t in make_spike_tables(table)}
-    files[f"text/db/{TABLE_FILE}.loc"] = encode_loc(make_spike_loc(_vanilla_loc()))
-    files[SPIKE_SCRIPT] = (ROOT / "src" / SPIKE_SCRIPT).read_bytes()
+    if variant == "spike":
+        tables = make_spike_tables(table)
+        loc = make_spike_loc(_vanilla_loc("en"))
+        scripts = {SPIKE_SCRIPT: (ROOT / "src" / SPIKE_SCRIPT).read_bytes()}
+    else:
+        tables = merge_tables(make_feature_tables(table) + make_symptom_tables(table))
+        loc = make_feature_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
+        core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
+        scripts = {CORE_SCRIPT: render_core(core, symptom_keys()).encode("utf-8")}
+    files = {f"db/{t.name}/{TABLE_FILE}": encode_table(schema, t) for t in tables}
+    files[f"text/db/{TABLE_FILE}.loc"] = encode_loc(loc)
+    files.update(scripts)
     write_pack(out_path, files)
     return files
 
 
 def main(argv, dist=ROOT / "dist"):
-    if "--spike" not in argv:
-        raise SystemExit("only --spike can be built until the in-game gate is passed")
+    variant = "spike" if "--spike" in argv else "release"
+    lang = argv[argv.index("--lang") + 1] if "--lang" in argv else "ru"
     dist.mkdir(exist_ok=True)
-    build(dist / PACK_NAME, variant="spike")
-    print("built %s" % (dist / PACK_NAME))
+    build(dist / PACK_NAME, variant=variant, lang=lang)
+    print("built %s (%s, %s)" % (dist / PACK_NAME, variant, lang))
     if "--install" in argv:
         shutil.copyfile(dist / PACK_NAME, GAME_DATA / PACK_NAME)
         print("installed %s" % (GAME_DATA / PACK_NAME))

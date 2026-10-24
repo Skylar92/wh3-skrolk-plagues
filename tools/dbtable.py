@@ -67,6 +67,12 @@ def reference_columns(schema, table):
     return schema.references(table.name, table.version)
 
 
+def key_columns(schema, table):
+    """Names of the table's key columns (is_key: true in the schema)."""
+    fields = re.split(r"\n\s*\(\n\s*name: ", schema._block(table.name, table.version))[1:]
+    return [f.split('"')[1] for f in fields if re.search(r"is_key: true", f)]
+
+
 def load_schema(path):
     return Schema(open(path, encoding="utf-8").read())
 
