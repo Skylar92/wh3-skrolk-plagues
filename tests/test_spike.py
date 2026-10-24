@@ -51,6 +51,19 @@ def test_spike_binds_direct_nurgle_rituals_only(tables):
                      | {"wh3_main_ritual_nur_plague_target_army", "wh3_main_ritual_nur_plague_target_settlement"})
 
 
+def test_spike_fills_blessed_effects(tables):
+    # run 5: the panel's effect columns stay empty; probe whether they read the blessed fields
+    for r in rows(tables, "plague_effects_tables"):
+        assert r["positive_blessed_effect_for_factions"] == r["positive_effect_for_factions"]
+        assert r["negative_blessed_effect_for_factions"] == r["negative_effect_for_factions"]
+
+
+def test_spike_script_dumps_interfaces():
+    from tools.paths import ROOT
+    lua = (ROOT / "src/script/campaign/mod/skrolkpl_spike.lua").read_text(encoding="utf-8")
+    assert "getmetatable" in lua and "GetStateText" in lua
+
+
 def test_spike_does_not_permit_the_cultist(tables):
     assert "faction_agent_permitted_subtypes_tables" not in tables
     assert "campaign_character_art_sets_tables" not in tables

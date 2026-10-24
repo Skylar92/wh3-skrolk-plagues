@@ -64,6 +64,39 @@ local function pestilens()
 	if is_human_pestilens(f) then return f end
 end
 
+-- Names of the methods a script interface offers (CA interfaces keep them in the metatable's __index).
+local function methods(obj)
+	if obj == nil then return "<nil>" end
+	local ok, mt = pcall(getmetatable, obj)
+	if not ok or type(mt) ~= "table" then return "<no metatable: " .. type(obj) .. ">" end
+	local index = mt.__index
+	if type(index) ~= "table" then return "<__index is " .. type(index) .. ">" end
+	local names = {}
+	for name in pairs(index) do names[#names + 1] = tostring(name) end
+	table.sort(names)
+	return table.concat(names, " ")
+end
+
+local function dump_interface(label, obj)
+	log("  methods of " .. label .. ": " .. methods(obj))
+end
+
+-- Text of every visible descendant with text, depth-first (to read the plague panel's current values).
+local function dump_texts(uic, prefix, depth)
+	if depth > 12 then return end
+	local n = try(uic, "ChildCount")
+	if type(n) ~= "number" then return end
+	for i = 0, n - 1 do
+		local child = UIComponent(uic:Find(i))
+		local id = tostring(try(child, "Id"))
+		local text = try(child, "GetStateText")
+		if type(text) == "string" and text ~= "" and try(child, "Visible") == true then
+			log("  text " .. prefix .. id .. " = " .. text)
+		end
+		dump_texts(child, prefix .. id .. ">", depth + 1)
+	end
+end
+
 local function log_purse(faction, label)
 	local food = try(try(try(faction, "pooled_resource_manager"), "resource", "skaven_food"), "value")
 	log(label .. ": treasury=" .. tostring(try(faction, "treasury")) .. " skaven_food=" .. tostring(food))
@@ -178,18 +211,30 @@ add("ritual_completed", "RitualCompletedEvent", function(context)
 	local ritual = try(context, "ritual")
 	log("RitualCompletedEvent ritual=" .. tostring(try(ritual, "ritual_key")) .. " faction="
 		.. name_of(try(context, "performing_faction")) .. " plague=" .. name_of(try(context, "plague")))
+	if name_of(try(context, "performing_faction")) == PESTILENS then
+		dump_interface("ritual context", context)
+		dump_interface("ritual", try(context, "ritual"))
+	end
 end)
 
 add("force_infected", "MilitaryForceInfectionEvent", function(context)
 	local plague = try(context, "plague")
 	log("MilitaryForceInfectionEvent plague=" .. name_of(plague) .. " creator=" .. name_of(try(plague, "creator_faction"))
 		.. " force_faction=" .. name_of(try(try(context, "target_force"), "faction")))
+	if name_of(try(plague, "creator_faction")) == PESTILENS then
+		dump_interface("force infection context", context)
+		dump_interface("plague", plague)
+	end
 end)
 
 add("region_infected", "RegionInfectionEvent", function(context)
 	local plague = try(context, "plague")
 	log("RegionInfectionEvent plague=" .. name_of(plague) .. " creator=" .. name_of(try(plague, "creator_faction"))
 		.. " region=" .. name_of(try(context, "region")))
+	if name_of(try(plague, "creator_faction")) == PESTILENS then
+		dump_interface("region infection context", context)
+		dump_interface("plague", plague)
+	end
 end)
 
 add("region_state", "RegionPlagueStateChanged", function(context)
@@ -247,6 +292,11 @@ add("click", "ComponentLClickUp", function(context)
 	log("click " .. uic_path(UIComponent(context.component)))
 	if context.string == "button_infect_target" or context.string == "button_summon_cultist" then
 		log_purse(pestilens(), "  purse before click")
+		local panel = find_uicomponent(core:get_ui_root(), "dlc25_nurgle_plagues")
+		if panel then
+			local main = find_uicomponent(panel, "panel_main")
+			dump_texts(main or panel, "", 0)
+		end
 	end
 end)
 

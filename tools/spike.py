@@ -106,8 +106,11 @@ def make_spike_tables(table):
         new_setups.rows.append(_row(setups, component=symptom_key(sid), set=SPIKE_SET, effects=ours))
         vanilla_setup = _find(effect_setups, "key", source)[0]
         new_effect_setups.rows.append([ours if v == source else v for v in vanilla_setup])
+        # blessed = normal: run 5's empty effect columns may read the blessed fields
         new_effects.rows.append(_row(effects, key=ours, positive_effect_for_factions=ours + "_pos",
-                                     negative_effect_for_factions=ours + "_neg"))
+                                     negative_effect_for_factions=ours + "_neg",
+                                     positive_blessed_effect_for_factions=ours + "_pos",
+                                     negative_blessed_effect_for_factions=ours + "_neg"))
         new_fseb.rows.append(_row(fseb, effect_bundle=source + "_positive", faction_set=POSITIVE_SET,
                                   key=ours + "_pos"))
         new_fseb.rows.append(_row(fseb, effect_bundle=source + "_negative", faction_set=NEGATIVE_SET,
