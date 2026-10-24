@@ -1,0 +1,8 @@
+[project]
+name = "wh3-skrolk-plagues"
+version = "0.1.0"
+requires-python = ">=3.14"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["game: needs the installed Total War: WARHAMMER III"]
