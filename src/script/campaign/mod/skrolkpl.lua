@@ -197,14 +197,20 @@ local function refresh_panel()
 	end
 end
 
--- The window reads the symptom grid only when it opens, so show a new grid by reopening it.
+-- The window reads the symptom grid only when it opens, so show a new grid by reopening it:
+-- its own close button, then the HUD button (clicking the HUD button while open did nothing).
 local function reopen_panel()
-	if not find_uicomponent(core:get_ui_root(), PANEL) then return end
-	local button = find_uicomponent(core:get_ui_root(), "hud_campaign", "faction_buttons_docker",
-		"button_group_management", "button_nurgle_plagues")
-	if not button then return end
-	button:SimulateLClick()               -- close
-	cm:callback(function() button:SimulateLClick() end, 0.2) -- open again with the new grid
+	local panel = find_uicomponent(core:get_ui_root(), PANEL)
+	local close = panel and find_uicomponent(panel, "holder_footer", "button_close_holder", "button_close")
+	log("reopen: window " .. tostring(panel ~= nil) .. ", close button " .. tostring(close ~= nil))
+	if not close then return end
+	close:SimulateLClick()
+	cm:callback(function()
+		local open = find_uicomponent(core:get_ui_root(), "hud_campaign", "faction_buttons_docker",
+			"button_group_management", "button_nurgle_plagues")
+		log("reopen: plague button " .. tostring(open ~= nil))
+		if open then open:SimulateLClick() end
+	end, 0.2)
 end
 
 local function charge(faction)
@@ -219,6 +225,7 @@ end
 
 local function on_plague_ritual(faction)
 	charge(faction)
+	refresh_panel() -- switch Infect off at once if the next plague is now unaffordable
 	-- after the infection events this ritual triggers, as nurgle_plagues does
 	cm:callback(function()
 		reshuffle()

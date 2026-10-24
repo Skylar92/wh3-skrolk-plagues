@@ -203,8 +203,19 @@ def test_window_reopened_after_plague_to_show_new_grid(g):
     first_tick(g)
     open_panel(g)
     g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
-    # the window reads the grid only when it opens: close and reopen it
-    assert calls(g, "click") == [("click", "button_nurgle_plagues"), ("click", "button_nurgle_plagues")]
+    # the window reads the grid only when it opens: close it with its own button, reopen from the HUD
+    assert calls(g, "click") == [("click", "button_close"), ("click", "button_nurgle_plagues")]
+
+
+def test_infect_switched_off_right_after_paying_when_next_plague_unaffordable(g):
+    # in game the second plague went through although the first left too little food
+    first_tick(g)
+    g.FACTIONS[PESTILENS].food = 30
+    open_panel(g)
+    assert g.UI["button_infect_target"].disabled is False
+    g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))  # pays 20 of the 30 food
+    assert g.UI["button_infect_target"].disabled is True
+    assert g.UI["dy_cost"].text == "Needs 20 food"
 
 
 def test_summon_button_hidden(g):

@@ -8,6 +8,7 @@ Nurgle's symptoms reuse their vanilla bundles; the rest get bundles of their own
 from dataclasses import dataclass, field
 
 from tools.rows import empty_like as _empty_like, find as _find, row as _row
+from tools.effects import ATTRITION_IMMUNITY
 from tools.keys import COMPONENT_SET, NEGATIVE_SET, POSITIVE_SET, SYMPTOM_COST
 
 SKILLS = "UI/Campaign UI/Skills/"
@@ -80,8 +81,7 @@ SYMPTOMS = [
     # Skaven symptoms
     Symptom("black_death", FORCE, SKILLS + "character_plague.png",
             # ours roam anywhere without attrition; infected enemies waste away
-            ours=(("wh3_main_effect_attrition_immunity_all_except_plague", F, 1.0),
-                  ("wh2_dlc16_effect_attrition_immunity_plague", F, 1.0)),
+            ours=((ATTRITION_IMMUNITY, F, 1.0),),
             enemy=(("wh2_main_effect_force_all_campaign_enable_disease_attrition", F, 1.0),),
             names={"ru": ("Чёрная смерть", "Свои пройдут где угодно без потерь; заражённые враги гниют в походе."),
                    "en": ("Black Death", "Ours march anywhere unharmed; infected foes rot on the march.")}),
@@ -130,9 +130,16 @@ def make_symptom_tables(table):
         key = symptom_key(s.id)
         out[comps.name].rows.append(_row(comps, comp_template, key=key, cost=SYMPTOM_COST, image_path=s.icon))
         out[setups.name].rows.append(_row(setups, component=key, set=COMPONENT_SET, effects=key))
-        force = key if s.kind == FORCE else None
-        out[effect_setups.name].rows.append(_row(effect_setups, key=key, force_effects=force,
-                                                 region_effects=None if force else key, garrison_effects=None))
+        if s.nurgle:  # vanilla's force/region/garrison shape
+            source = "wh3_dlc25_nur_" + s.nurgle
+            out[effect_setups.name].rows.append([key if v == source else v
+                                                 for v in _find(effect_setups, "key", source)])
+        elif s.kind == FORCE:  # like Nurgle's battle symptoms: the army and settlement garrisons
+            out[effect_setups.name].rows.append(_row(effect_setups, key=key, force_effects=key,
+                                                     region_effects=None, garrison_effects=key))
+        else:
+            out[effect_setups.name].rows.append(_row(effect_setups, key=key, force_effects=None,
+                                                     region_effects=key, garrison_effects=None))
         # blessed = normal: the window's effect columns stayed empty without them (spike run 7)
         out[effects.name].rows.append(_row(effects, key=key, positive_effect_for_factions=key + "_pos",
                                            negative_effect_for_factions=key + "_neg",

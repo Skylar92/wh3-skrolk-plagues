@@ -10,6 +10,7 @@ import shutil
 import sys
 
 from tools.dbtable import decode_table, encode_table, load_schema
+from tools.effects import make_effect_loc, make_effect_tables
 from tools.feature import make_feature_loc, make_feature_tables
 from tools.loc import decode_loc, encode_loc
 from tools.packfile import read_pack, write_pack
@@ -66,8 +67,8 @@ def build(out_path, variant="release", lang="ru"):
         loc = make_spike_loc(_vanilla_loc("en"))
         scripts = {SPIKE_SCRIPT: (ROOT / "src" / SPIKE_SCRIPT).read_bytes()}
     else:
-        tables = merge_tables(make_feature_tables(table) + make_symptom_tables(table))
-        loc = make_feature_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
+        tables = merge_tables(make_feature_tables(table) + make_effect_tables(table) + make_symptom_tables(table))
+        loc = make_feature_loc(lang) + make_effect_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
         core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
         scripts = {CORE_SCRIPT: render_core(core, symptom_keys()).encode("utf-8")}
     files = {f"db/{t.name}/{TABLE_FILE}": encode_table(schema, t) for t in tables}

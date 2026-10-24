@@ -56,14 +56,21 @@ def test_effects_split_by_our_faction_sets(tables):
     assert set(effects) == set(symptom_keys())
 
 
-def test_force_and_region_shapes(tables):
+def test_force_and_region_shapes(tables, vanilla):
+    # The window's effect columns stayed empty for force-only symptoms; vanilla battle symptoms
+    # also carry garrison effects. Nurgle clones copy vanilla's shape; ours: force + garrison.
     setups = {r["key"]: r for r in rows(tables, "plague_effect_setups_tables")}
+    v = vanilla("plague_effect_setups_tables")
+    vanilla_shape = {r[0]: [x is not None for x in r[1:]] for r in v.rows}
     for s in SYMPTOMS:
         r = setups["skrolkpl_sym_" + s.id]
-        if s.kind == "force":
-            assert r["force_effects"] == r["key"] and r["region_effects"] is None
+        shape = [r[c] is not None for c in ("force_effects", "region_effects", "garrison_effects")]
+        if s.nurgle:
+            assert shape == vanilla_shape["wh3_dlc25_nur_" + s.nurgle], s.id
+        elif s.kind == "force":
+            assert shape == [True, False, True], s.id
         else:
-            assert r["region_effects"] == r["key"] and r["force_effects"] is None
+            assert shape == [False, True, False], s.id
 
 
 def test_nurgle_symptoms_reuse_vanilla_bundles(tables):
@@ -94,7 +101,7 @@ def test_skaven_corruption_replaces_nurgle_corruption(tables):
 
 
 def test_only_own_scopes_and_vanilla_effects(tables, vanilla):
-    known = {r[0] for r in vanilla("effects_tables").rows}
+    known = {r[0] for r in vanilla("effects_tables").rows} | {"skrolkpl_effect_attrition_immunity"}
     for r in rows(tables, "effect_bundles_to_effects_junctions_tables"):
         assert r["effect_scope"] in ALLOWED_SCOPES, r
         assert r["effect_key"] in known, r
@@ -141,5 +148,5 @@ def test_black_death_spares_ours_from_all_attrition(tables):
     j = rows(tables, "effect_bundles_to_effects_junctions_tables")
     ours = {r["effect_key"] for r in j if r["effect_bundle_key"] == "skrolkpl_sym_black_death_pos"}
     enemy = {r["effect_key"] for r in j if r["effect_bundle_key"] == "skrolkpl_sym_black_death_neg"}
-    assert ours == {"wh3_main_effect_attrition_immunity_all_except_plague", "wh2_dlc16_effect_attrition_immunity_plague"}
+    assert ours == {"skrolkpl_effect_attrition_immunity"}  # one line: "immune to attrition"
     assert enemy == {"wh2_main_effect_force_all_campaign_enable_disease_attrition"}
