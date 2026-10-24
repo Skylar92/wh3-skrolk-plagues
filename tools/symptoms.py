@@ -111,6 +111,13 @@ SYMPTOMS = [
 BUNDLE_TEMPLATES = {FORCE: "wh3_dlc25_nur_battle_1_positive", REGION: "wh3_dlc25_nur_settlement_1_positive"}
 
 
+def blessed_value(effect, value):
+    """Blessed symptoms double their effects; on/off effects (enable..., immunity...) stay on."""
+    if abs(value) == 1.0 and ("enable" in effect or "immunity" in effect):
+        return value
+    return value * 2
+
+
 def symptom_key(sid):
     return "skrolkpl_sym_" + sid
 
@@ -141,23 +148,26 @@ def make_symptom_tables(table):
         else:
             out[effect_setups.name].rows.append(_row(effect_setups, key=key, force_effects=None,
                                                      region_effects=key, garrison_effects=None))
-        # blessed = normal: the window's effect columns stayed empty without them (spike run 7)
         out[effects.name].rows.append(_row(effects, key=key, positive_effect_for_factions=key + "_pos",
                                            negative_effect_for_factions=key + "_neg",
-                                           positive_blessed_effect_for_factions=key + "_pos",
-                                           negative_blessed_effect_for_factions=key + "_neg"))
-        for side, fset, effs in (("_pos", POSITIVE_SET, s.ours), ("_neg", NEGATIVE_SET, s.enemy)):
-            if s.nurgle:
-                bundle = "wh3_dlc25_nur_%s_%s" % (s.nurgle, "positive" if side == "_pos" else "negative")
-            else:
-                bundle = key + side
-                out[bundles.name].rows.append(_row(bundles, _find(bundles, "key", BUNDLE_TEMPLATES[s.kind]),
-                                                   key=bundle))
-                for effect, scope, value in effs:
-                    out[junctions.name].rows.append(_row(junctions, junctions.rows[0], effect_bundle_key=bundle,
-                                                         effect_key=effect, effect_scope=scope, value=value,
-                                                         advancement_stage="start_turn_completed"))
-            out[fseb.name].rows.append(_row(fseb, effect_bundle=bundle, faction_set=fset, key=key + side))
+                                           positive_blessed_effect_for_factions=key + "_pos_blessed",
+                                           negative_blessed_effect_for_factions=key + "_neg_blessed"))
+        for side, fset, effs, word in (("_pos", POSITIVE_SET, s.ours, "positive"),
+                                       ("_neg", NEGATIVE_SET, s.enemy, "negative")):
+            for blessed in (False, True):
+                suffix = side + ("_blessed" if blessed else "")
+                if s.nurgle:
+                    bundle = "wh3_dlc25_nur_%s_%s%s" % (s.nurgle, word, "_blessed" if blessed else "")
+                else:
+                    bundle = key + suffix
+                    out[bundles.name].rows.append(_row(bundles, _find(bundles, "key", BUNDLE_TEMPLATES[s.kind]),
+                                                       key=bundle))
+                    for effect, scope, value in effs:
+                        out[junctions.name].rows.append(_row(
+                            junctions, junctions.rows[0], effect_bundle_key=bundle, effect_key=effect,
+                            effect_scope=scope, value=blessed_value(effect, value) if blessed else value,
+                            advancement_stage="start_turn_completed"))
+                out[fseb.name].rows.append(_row(fseb, effect_bundle=bundle, faction_set=fset, key=key + suffix))
     return list(out.values())
 
 

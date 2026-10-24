@@ -137,11 +137,24 @@ def test_nurgle_clone_names_copied_from_vanilla():
     assert loc["plague_components_localised_name_skrolkpl_sym_battle_1"] == "Bleeding"
 
 
-def test_blessed_fields_mirror_normal_ones(tables):
-    # spike run 7: the window's effect columns showed effects only with the blessed fields filled
-    for r in rows(tables, "plague_effects_tables"):
-        assert r["positive_blessed_effect_for_factions"] == r["positive_effect_for_factions"]
-        assert r["negative_blessed_effect_for_factions"] == r["negative_effect_for_factions"]
+def test_blessed_effects_are_doubled(tables):
+    # blessed symptoms work twice as hard (like Nurgle's); the effect columns now come from our .cco
+    effects = {r["key"]: r for r in rows(tables, "plague_effects_tables")}
+    fseb = {r["key"]: r for r in rows(tables, "faction_set_effect_bundles_tables")}
+    j = rows(tables, "effect_bundles_to_effects_junctions_tables")
+    for s in SYMPTOMS:
+        key = "skrolkpl_sym_" + s.id
+        e = effects[key]
+        assert e["positive_blessed_effect_for_factions"] == key + "_pos_blessed"
+        assert e["negative_blessed_effect_for_factions"] == key + "_neg_blessed"
+        assert fseb[key + "_pos_blessed"]["faction_set"] == "skrolkpl_positive"
+        assert fseb[key + "_neg_blessed"]["faction_set"] == "skrolkpl_negative"
+        if s.nurgle:
+            assert fseb[key + "_pos_blessed"]["effect_bundle"] == "wh3_dlc25_nur_%s_positive_blessed" % s.nurgle
+    thirteen = {(r["effect_key"], r["value"]) for r in j if r["effect_bundle_key"] == "skrolkpl_sym_thirteen_pos_blessed"}
+    assert thirteen == {("wh_main_effect_force_stat_weapon_strength", 26.0)}
+    frenzy = {(r["effect_key"], r["value"]) for r in j if r["effect_bundle_key"] == "skrolkpl_sym_sk_frenzy_pos_blessed"}
+    assert frenzy == {("wh_dlc08_effect_ability_enable_frenzy", 1.0), ("wh_main_effect_force_stat_leadership", 16.0)}
 
 
 def test_black_death_spares_ours_from_all_attrition(tables):
