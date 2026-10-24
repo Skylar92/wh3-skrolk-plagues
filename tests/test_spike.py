@@ -32,15 +32,31 @@ def test_spike_shows_plague_button(tables):
     assert rows(tables, "ui_features_to_factions_tables") == [{"faction": PESTILENS, "ui_feature": "NURGLE_PLAGUES"}]
 
 
+RITUAL_KINDS = ("agent_army", "agent_settlement", "target_army", "target_settlement")
+
+
 def test_spike_has_four_plague_rituals(tables):
     rituals = {r["key"]: r for r in rows(tables, "rituals_tables")}
-    assert set(rituals) == {"skrolkpl_spike_ritual_" + s for s in
-                            ("agent_army", "agent_settlement", "target_army", "target_settlement")}
+    assert set(rituals) == {"skrolkpl_spike_ritual_" + s for s in RITUAL_KINDS}
     assert all(r["category"] == "NURGLE_RITUAL" for r in rituals.values())
     assert all(r["expended_resources"] == "skrolkpl_spike_ritual" for r in rituals.values())
+
+
+def test_spike_binds_our_and_vanilla_plague_rituals(tables):
+    # run 3: the window's Infect button picked no ritual of ours; it may look for Nurgle's own keys
     bound = {r["ritual"] for r in rows(tables, "campaign_group_rituals_tables")
              if r["campaign_group"] == FEATURE and r["initially_unlocked"]}
-    assert bound == set(rituals)
+    assert bound == ({"skrolkpl_spike_ritual_" + s for s in RITUAL_KINDS}
+                     | {"wh3_main_ritual_nur_plague_" + s for s in RITUAL_KINDS})
+
+
+def test_spike_free_ritual_bundle_zeroes_infection_cost(tables):
+    effects = {(r["effect_key"], r["effect_scope"], r["value"]) for r in rows(tables, "effect_bundles_to_effects_junctions_tables")
+               if r["effect_bundle_key"] == "skrolkpl_spike_free_rituals"}
+    assert effects == {("wh3_main_effect_force_direct_infection_cost", "faction_to_force_own", -100.0),
+                       ("wh3_main_effect_force_direct_infection_cost_hidden", "faction_to_region_own", -100.0),
+                       ("wh3_dlc25_effect_plague_cultists_infection_cost_reduction_force", "faction_to_force_own", -100.0)}
+    assert [r["key"] for r in rows(tables, "effect_bundles_tables")] == ["skrolkpl_spike_free_rituals"]
 
 
 NURGLE_GRID = ("battle_2", "settlement_4", "force_2", "battle_7", "battle_6", "battle_1", "settlement_5",

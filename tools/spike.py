@@ -24,6 +24,10 @@ SPIKE_RITUAL = "skrolkpl_spike_ritual_"
 FACTOR_NAME = "Plague of Skrolk"
 POSITIVE_SET = "skrolkpl_positive"
 NEGATIVE_SET = "skrolkpl_negative"
+FREE_RITUALS_BUNDLE = "skrolkpl_spike_free_rituals"
+FREE_RITUAL_EFFECTS = (("wh3_main_effect_force_direct_infection_cost", "faction_to_force_own"),
+                       ("wh3_main_effect_force_direct_infection_cost_hidden", "faction_to_region_own"),
+                       ("wh3_dlc25_effect_plague_cultists_infection_cost_reduction_force", "faction_to_force_own"))
 SET_ITEM_ID_BASE = 2100600000  # faction_set_items ids; vanilla's are spread over the whole I32 range
 
 
@@ -135,7 +139,21 @@ def make_spike_tables(table):
                                      key=SPIKE_RITUAL + name, expended_resources=RITUAL_COST))
         new_group.rows.append(_row(group_rituals, campaign_group=FEATURE, ritual=SPIKE_RITUAL + name,
                                    unlock_mission=None, unlock_turn=0, initially_unlocked=True))
+    # Run 3: the Infect button found no ritual of ours, so also grant Nurgle's own keys and zero
+    # their infection cost with the same effects Nurgle's skills use (the script applies the bundle).
+    for name in RITUALS:
+        new_group.rows.append(_row(group_rituals, campaign_group=FEATURE, ritual=NUR_RITUAL + name,
+                                   unlock_mission=None, unlock_turn=0, initially_unlocked=True))
     out += [new_rituals, new_group]
+
+    bundles = table("effect_bundles_tables")
+    source = _find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur")[0]
+    out.append(_with(bundles, _row(bundles, template=source, key=FREE_RITUALS_BUNDLE)))
+    junctions = table("effect_bundles_to_effects_junctions_tables")
+    out.append(_with(junctions, *[
+        _row(junctions, template=junctions.rows[0], effect_bundle_key=FREE_RITUALS_BUNDLE, effect_key=effect,
+             effect_scope=scope, value=-100.0, advancement_stage="start_turn_completed")
+        for effect, scope in FREE_RITUAL_EFFECTS]))
     return out
 
 

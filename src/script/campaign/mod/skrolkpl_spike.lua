@@ -23,6 +23,14 @@ local SYMPTOMS = {
 	"skrolkpl_spike_sym_settlement_3", "skrolkpl_spike_sym_force_4", "skrolkpl_spike_sym_battle_3",
 }
 local SPIKE_RITUAL_PREFIX = "skrolkpl_spike_ritual_"
+local NURGLE_RITUAL_PREFIX = "wh3_main_ritual_nur_plague_"
+local FREE_RITUALS_BUNDLE = "skrolkpl_spike_free_rituals"
+-- What the plague window evaluates for its Infect / Summon buttons (dlc25_nurgle_plagues.twui.xml)
+local UI_PROBES = {
+	"Plagues.DirectRitualContext.Key", "Plagues.AgentRitualContext.Key", "Plagues.IsValidSelection",
+	"CanPerformRitual(Plagues.CompositionAndTargetContext)",
+	"Plagues.DirectRitualContext.ResourceTransactionContext(Plagues.CompositionAndTargetContext).TotalCostText",
+}
 local grid = nil -- current symptom order; nil until first placed
 local LOCK_PROBE = "skrolkpl_spike_sym_settlement_1" -- G6: locked while the panel is open
 local PARAMS = { "duration", "immunity", "spread" }
@@ -131,6 +139,7 @@ local function on_first_tick()
 	if not faction then return end
 	log("first tick, turn " .. cm:model():turn_number())
 	cm:override_ui(PLAGUE_BUTTON_OVERRIDE, false)
+	cm:apply_effect_bundle(FREE_RITUALS_BUNDLE, PESTILENS, 0) -- zeroes Nurgle rituals' infection cost
 	unlock_all(faction)
 	if grid then publish_grid() else shuffle_grid() end
 	dump_components(faction)
@@ -156,7 +165,9 @@ add("ritual_started", "RitualStartedEvent", function(context)
 	local key = tostring(try(ritual, "ritual_key"))
 	local faction = try(context, "performing_faction")
 	log("RitualStartedEvent ritual=" .. key .. " faction=" .. name_of(faction) .. " plague=" .. name_of(try(context, "plague")))
-	if string.sub(key, 1, #SPIKE_RITUAL_PREFIX) == SPIKE_RITUAL_PREFIX and type(faction) ~= "string" and is_human_pestilens(faction) then
+	local ours = string.sub(key, 1, #SPIKE_RITUAL_PREFIX) == SPIKE_RITUAL_PREFIX
+		or string.sub(key, 1, #NURGLE_RITUAL_PREFIX) == NURGLE_RITUAL_PREFIX
+	if ours and type(faction) ~= "string" and is_human_pestilens(faction) then
 		dump_components(faction)
 		-- after the infection events, like nurgle_plagues does
 		cm:callback(function() shuffle_grid() end, 0.5)
@@ -219,9 +230,29 @@ add("panel_closed", "PanelClosedCampaign", function(context)
 	end
 end)
 
+-- Evaluate a UI context expression; the API shape is not documented, so try the known variants.
+local function probe(expr)
+	local results = {}
+	local attempts = {
+		function() return common.get_context_value("CcoStaticObject", "", expr) end,
+		function() return common.get_context_value(expr) end,
+		function() return cco("CcoStaticObject", ""):Call(expr) end,
+	}
+	for i, f in ipairs(attempts) do
+		local ok, v = pcall(f)
+		results[#results + 1] = i .. ":" .. (ok and tostring(v) or ("err " .. tostring(v)))
+	end
+	return table.concat(results, " | ")
+end
+
 add("click", "ComponentLClickUp", function(context)
 	if not pestilens() then return end
 	log("click " .. uic_path(UIComponent(context.component)))
+	if context.string == "button_infect_target" or context.string == "button_summon_cultist" then
+		for _, expr in ipairs(UI_PROBES) do
+			log("  probe " .. expr .. " = " .. probe(expr))
+		end
+	end
 end)
 
 cm:add_first_tick_callback(function()
