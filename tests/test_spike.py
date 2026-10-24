@@ -27,6 +27,11 @@ def test_spike_pack_binds_pestilens(tables):
         tables, "campaign_group_faction_plague_setup_sets_tables")
 
 
+def test_spike_shows_plague_button(tables):
+    # hud_campaign shows the plague button and panel only when CanUseUiFeature("NURGLE_PLAGUES")
+    assert rows(tables, "ui_features_to_factions_tables") == [{"faction": PESTILENS, "ui_feature": "NURGLE_PLAGUES"}]
+
+
 def test_spike_has_four_plague_rituals(tables):
     rituals = {r["key"]: r for r in rows(tables, "rituals_tables")}
     assert set(rituals) == {"skrolkpl_spike_ritual_" + s for s in

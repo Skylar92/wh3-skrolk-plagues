@@ -62,6 +62,9 @@ def make_spike_tables(table):
     crit = table("campaign_group_member_criteria_factions_tables")
     out.append(_with(crit, _row(crit, faction=PESTILENS, member=FEATURE, context="ACTOR")))
 
+    ui = table("ui_features_to_factions_tables")  # hud_campaign gates the plague button on this feature
+    out.append(_with(ui, _row(ui, faction=PESTILENS, ui_feature="NURGLE_PLAGUES")))
+
     comp_sets = table("campaign_group_plague_component_setup_sets_tables")
     out.append(_with(comp_sets, _row(comp_sets, campaign_group=FEATURE, set=SPIKE_SET)))
     setup_sets = table("plague_component_setup_sets_tables")
