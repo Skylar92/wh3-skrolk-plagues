@@ -7,7 +7,7 @@ Nurgle's symptoms reuse their vanilla bundles; the rest get bundles of their own
 """
 from dataclasses import dataclass, field
 
-from tools.dbtable import Table
+from tools.rows import empty_like as _empty_like, find as _find, row as _row
 from tools.keys import COMPONENT_SET, NEGATIVE_SET, POSITIVE_SET, SYMPTOM_COST
 
 SKILLS = "UI/Campaign UI/Skills/"
@@ -114,22 +114,6 @@ def symptom_key(sid):
 
 def symptom_keys():
     return [symptom_key(s.id) for s in SYMPTOMS]
-
-
-def _empty_like(table):
-    return Table(table.name, table.version, table.guid, list(table.fields), [], table.versioned)
-
-
-def _row(table, template=None, **values):
-    row = list(template) if template else [None] * len(table.fields)
-    for col, value in values.items():
-        row[table.col(col)] = value
-    return row
-
-
-def _find(table, col, value):
-    i = table.col(col)
-    return next(r for r in table.rows if r[i] == value)
 
 
 def make_symptom_tables(table):

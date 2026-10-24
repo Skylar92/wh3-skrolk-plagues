@@ -5,6 +5,7 @@ FEATURE = "skrolkpl_feature"                  # campaign group Pestilens joins f
 COMPONENT_SET = "skrolkpl_components"         # plague_component_setup_sets key
 POSITIVE_SET = "skrolkpl_positive"            # faction set taking a plague's positive effects
 NEGATIVE_SET = "skrolkpl_negative"            # everyone else
-SYMPTOM_COST = "skrolkpl_symptom"             # resource cost of one symptom
-FOOD_FACTOR = "skrolkpl_plague"               # pooled_resource_factors key (shown in the food tooltip)
-FOOD_JUNCTION = "skrolkpl_food_plague"        # pooled_resource_factor_junctions unique_id on skaven_food
+SYMPTOM_COST = "skrolkpl_symptom"             # resource cost of one symptom (zero: the script charges)
+# skaven_food spending factor; also the junction's unique_id, as in vanilla's Throt flesh lab, which
+# passes this key to cm:faction_add_pooled_resource
+FOOD_FACTOR = "skrolkpl_plague_food"
