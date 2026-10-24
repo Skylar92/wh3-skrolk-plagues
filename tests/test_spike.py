@@ -42,22 +42,24 @@ def test_spike_has_four_plague_rituals(tables):
     assert all(r["expended_resources"] == "skrolkpl_spike_ritual" for r in rituals.values())
 
 
-def test_spike_binds_our_and_vanilla_plague_rituals(tables):
-    # run 3: the window's Infect button picked no ritual of ours; it may look for Nurgle's own keys
+def test_spike_binds_direct_nurgle_rituals_only(tables):
+    # run 4: the window uses Nurgle's own ritual keys. Run 5: the cultist they spawn (a Nurgle-only
+    # dignitary) crashes Skaven UI, so the agent rituals are not granted (carrier agent is a TODO).
     bound = {r["ritual"] for r in rows(tables, "campaign_group_rituals_tables")
              if r["campaign_group"] == FEATURE and r["initially_unlocked"]}
     assert bound == ({"skrolkpl_spike_ritual_" + s for s in RITUAL_KINDS}
-                     | {"wh3_main_ritual_nur_plague_" + s for s in RITUAL_KINDS})
+                     | {"wh3_main_ritual_nur_plague_target_army", "wh3_main_ritual_nur_plague_target_settlement"})
 
 
-def test_spike_permits_plague_cultist_dressed_as_plague_priest(tables):
-    # run 4: "Summon cultist" crashed; Nurgle's agent ritual spawns this subtype, not permitted for Pestilens
-    cultist = "wh3_main_nur_cultist_plague_ritual"
-    assert rows(tables, "faction_agent_permitted_subtypes_tables") == [
-        {"agent": "dignitary", "faction": PESTILENS, "subtype": cultist, "mod_disabled": False}]
-    art = rows(tables, "campaign_character_art_sets_tables")
-    assert {(r["agent_type"], r["faction"], r["agent_subtype"], r["art_set_id"]) for r in art} == {
-        ("dignitary", PESTILENS, cultist, "wh2_main_art_set_skv_plague_priest_0%d" % i) for i in (1, 2, 3)}
+def test_spike_does_not_permit_the_cultist(tables):
+    assert "faction_agent_permitted_subtypes_tables" not in tables
+    assert "campaign_character_art_sets_tables" not in tables
+
+
+def test_spike_script_hides_summon_button():
+    from tools.paths import ROOT
+    lua = (ROOT / "src/script/campaign/mod/skrolkpl_spike.lua").read_text(encoding="utf-8")
+    assert '"button_summon_cultist"' in lua and "SetVisible(false)" in lua
 
 
 def test_spike_free_ritual_bundle_zeroes_infection_cost(tables):

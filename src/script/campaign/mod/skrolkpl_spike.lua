@@ -208,10 +208,22 @@ add("turn_start", "FactionTurnStart", function(context)
 	dump_components(faction)
 end)
 
+-- The cultist that Nurgle's agent ritual spawns crashes Skaven UI (run 5): hide its button.
+local function hide_summon_button(panel_name)
+	local panel = find_uicomponent(core:get_ui_root(), panel_name)
+	local button = panel and find_uicomponent(panel, "button_summon_cultist")
+	if button then
+		button:SetVisible(false)
+	end
+	log("summon button hidden: " .. tostring(button ~= nil and button ~= false))
+end
+
 add("panel_opened", "PanelOpenedCampaign", function(context)
 	log("PanelOpenedCampaign " .. tostring(context.string))
 	local faction = pestilens()
 	if not faction or not string.find(tostring(context.string), "plague") then return end
+	hide_summon_button(context.string)
+	cm:callback(function() hide_summon_button(context.string) end, 0.1) -- the panel may build late
 	cm:set_plague_component_state(faction, LOCK_PROBE, "LOCKED", true) -- G6
 	log("G6: locked " .. LOCK_PROBE .. " while the panel is open")
 	cm:callback(function()
