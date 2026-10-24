@@ -81,23 +81,27 @@ def make_spike_tables(table):
 
     comps = table("plague_components_tables")
     setups = table("plague_component_setups_tables")
+    # component setup -> plague_effect_setups (force/region/garrison) -> plague_effects -> faction set bundles
+    effect_setups = table("plague_effect_setups_tables")
     effects = table("plague_effects_tables")
     fseb = table("faction_set_effect_bundles_tables")
     new_comps, new_setups = _empty_like(comps), _empty_like(setups)
-    new_effects, new_fseb = _empty_like(effects), _empty_like(fseb)
+    new_effect_setups, new_effects, new_fseb = _empty_like(effect_setups), _empty_like(effects), _empty_like(fseb)
     for sid in SPIKE_SYMPTOMS:
         source = "wh3_dlc25_nur_" + sid
         ours = "skrolkpl_spike_" + sid
         new_comps.rows.append(_row(comps, template=_find(comps, "key", source)[0],
                                    key=symptom_key(sid), cost=SYMPTOM_COST))
         new_setups.rows.append(_row(setups, component=symptom_key(sid), set=SPIKE_SET, effects=ours))
+        vanilla_setup = _find(effect_setups, "key", source)[0]
+        new_effect_setups.rows.append([ours if v == source else v for v in vanilla_setup])
         new_effects.rows.append(_row(effects, key=ours, positive_effect_for_factions=ours + "_pos",
                                      negative_effect_for_factions=ours + "_neg"))
         new_fseb.rows.append(_row(fseb, effect_bundle=source + "_positive", faction_set=POSITIVE_SET,
                                   key=ours + "_pos"))
         new_fseb.rows.append(_row(fseb, effect_bundle=source + "_negative", faction_set=NEGATIVE_SET,
                                   key=ours + "_neg"))
-    out += [new_effects, new_fseb]
+    out += [new_effect_setups, new_effects, new_fseb]
     for r in _find(setups, "set", NURGLE_SET):
         if r[setups.col("component")].startswith("wh3_dlc25_nur_mutation_"):
             new_setups.rows.append(_row(setups, template=r, set=SPIKE_SET))

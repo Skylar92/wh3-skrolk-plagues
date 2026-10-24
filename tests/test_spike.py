@@ -57,6 +57,12 @@ def test_spike_set_uses_own_effects_and_nurgle_mutations(tables):
     assert all(r["set"] == SPIKE_SET for r in setups)
     by_comp = {r["component"]: r["effects"] for r in setups}
     assert by_comp["skrolkpl_spike_sym_battle_1"] == "skrolkpl_spike_battle_1"
+    effect_setups = {r["key"]: r for r in rows(tables, "plague_effect_setups_tables")}
+    # same force/region/garrison shape as the vanilla symptom
+    assert effect_setups["skrolkpl_spike_battle_1"] == {
+        "key": "skrolkpl_spike_battle_1", "force_effects": "skrolkpl_spike_battle_1",
+        "region_effects": None, "garrison_effects": "skrolkpl_spike_battle_1"}
+    assert effect_setups["skrolkpl_spike_settlement_1"]["region_effects"] == "skrolkpl_spike_settlement_1"
     assert sum(1 for c in by_comp if c.startswith("wh3_dlc25_nur_mutation_")) == 12
 
 

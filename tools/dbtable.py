@@ -40,15 +40,31 @@ class Schema:
         return self._cache[key]
 
     def _parse(self, table, version):
+        return re.findall(r'name: "([^"]+)",\s*field_type: ([A-Za-z0-9_]+)', self._block(table, version))
+
+    def references(self, table, version):
+        """{column: (referenced table with _tables suffix, referenced column)} for one table version."""
+        fields = re.split(r"\n\s*\(\n\s*name: ", self._block(table, version))[1:]
+        out = {}
+        for f in fields:
+            ref = re.search(r'is_reference: Some\(\("([^"]+)", "([^"]+)"\)\)', f)
+            if ref:
+                out[f.split('"')[1]] = (ref.group(1) + "_tables", ref.group(2))
+        return out
+
+    def _block(self, table, version):
         start = self._text.find('"%s": [' % table)
         if start < 0:
             raise KeyError("table not in schema: " + table)
         block = self._text[start:self._text.find("\n        ],", start)]
         for vblock in re.split(r"\n            \(\n                version: ", block)[1:]:
             if int(vblock.split(",")[0]) == version:
-                plain = vblock.split("localised_fields:")[0]
-                return re.findall(r'name: "([^"]+)",\s*field_type: ([A-Za-z0-9_]+)', plain)
+                return vblock.split("localised_fields:")[0]
         raise KeyError("version %d of %s not in schema" % (version, table))
+
+
+def reference_columns(schema, table):
+    return schema.references(table.name, table.version)
 
 
 def load_schema(path):
