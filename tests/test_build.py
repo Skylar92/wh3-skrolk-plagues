@@ -114,3 +114,9 @@ def test_release_has_no_duplicate_keys(release, schema):
 def test_unknown_variant_rejected(tmp_path):
     with pytest.raises(ValueError):
         build(tmp_path / PACK_NAME, variant="bogus")
+
+
+def test_release_ships_the_plague_window_script(release):
+    from tools.cco import CCO_PATH
+    cco = release[CCO_PATH].decode("utf-8")
+    assert '"skrolkpl_positive"' in cco and '"plague_effect_set_nurgle_positive"' in cco

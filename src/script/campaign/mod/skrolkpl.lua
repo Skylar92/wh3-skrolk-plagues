@@ -4,13 +4,13 @@
 --
 --	A human Clan Pestilens gets Nurgle's plague window. The window's 18-slot
 --	symptom grid is filled from our catalogue, 18 symptoms at random, and is
---	reshuffled after every plague, so the links between symptoms change. The
---	engine charges nothing for a plague, so this script does: a flat price in
---	food and gold, plus food for every level of the duration / spread /
---	immunity slots, read from the window when the player presses Infect. There
---	is no cooldown: the price is the limit. While the faction cannot pay, the
---	Infect button is hidden and the window says why. The window's Nurgle
---	wording is replaced for Skrolk.
+--	reshuffled at the start of every Pestilens turn, so the links between
+--	symptoms change; within a turn several plagues use one layout. The engine charges nothing for a
+--	plague, so this script does: a flat price in food and gold, plus food for
+--	every level of the duration / spread / immunity slots, read from the window
+--	when the player presses Infect. While the faction cannot pay, Infect is
+--	switched off and the window says why. The window's Nurgle wording is
+--	replaced for Skrolk.
 --
 ------------------------------------------------------------------------------
 
@@ -107,6 +107,7 @@ local function food_of(faction)
 	return faction:pooled_resource_manager():resource(FOOD_RESOURCE):value()
 end
 
+-- The window's counter ("... until new symptom locations") is always 1: a new layout next turn.
 local function publish_grid()
 	common.set_context_value("random_plague_component_list_" .. PESTILENS, skrolkpl.persistent.grid)
 	common.set_context_value("random_plague_creation_count_" .. PESTILENS, 1)
@@ -200,22 +201,6 @@ local function refresh_panel()
 	end
 end
 
--- The window reads the symptom grid only when it opens, so show a new grid by reopening it:
--- its own close button, then the HUD button (clicking the HUD button while open did nothing).
-local function reopen_panel()
-	local panel = find_uicomponent(core:get_ui_root(), PANEL)
-	local close = panel and find_uicomponent(panel, "holder_footer", "button_close_holder", "button_close")
-	log("reopen: window " .. tostring(panel ~= nil) .. ", close button " .. tostring(close ~= nil))
-	if not close then return end
-	close:SimulateLClick()
-	cm:callback(function()
-		local open = find_uicomponent(core:get_ui_root(), "hud_campaign", "faction_buttons_docker",
-			"button_group_management", "button_nurgle_plagues")
-		log("reopen: plague button " .. tostring(open ~= nil))
-		if open then open:SimulateLClick() end
-	end, 0.2)
-end
-
 local function charge(faction)
 	local levels = skrolkpl.pending_levels or read_levels() or { 0, 0, 0 }
 	skrolkpl.pending_levels = nil
@@ -226,14 +211,86 @@ local function charge(faction)
 	log("charged " .. take_food .. " food, " .. take_gold .. " gold (price " .. food .. "/" .. gold .. ")")
 end
 
+------------------------------------------------------------------------------
+-- PROBES (temporary): learn which symptoms are on cooldown and how grid slots link,
+-- to guarantee a usable layout every turn later.
+------------------------------------------------------------------------------
+
+local function probe_methods(obj)
+	local names = {}
+	local ok, mt = pcall(getmetatable, obj)
+	if ok and type(mt) == "table" then
+		for k in pairs(mt) do names[#names + 1] = tostring(k) end
+		if type(mt.__index) == "table" then
+			for k in pairs(mt.__index) do names[#names + 1] = "." .. tostring(k) end
+		end
+	end
+	table.sort(names)
+	return table.concat(names, " ")
+end
+
+local function probe_components(label)
+	local faction = human_pestilens()
+	if not faction then return end
+	local list = faction:plagues():plague_component_list()
+	log("probe components " .. label .. ": " .. list:num_items())
+	for i = 0, list:num_items() - 1 do
+		local c = list:item_at(i)
+		if i == 0 then log("probe component methods: " .. probe_methods(c)) end
+		local states = {}
+		for _, st in ipairs({ "UNLOCKED", "LOCKED", "BLESSED", "COOLDOWN", "ON_COOLDOWN", "USED" }) do
+			local ok, v = pcall(c.has_state, c, st)
+			if ok and v then states[#states + 1] = st end
+		end
+		local extra = {}
+		for _, m in ipairs({ "cooldown", "remaining_cooldown", "cooldown_remaining", "is_on_cooldown" }) do
+			local ok, f = pcall(function() return c[m] end)
+			if ok and type(f) == "function" then
+				local ok2, v = pcall(f, c)
+				extra[#extra + 1] = m .. "=" .. tostring(ok2 and v)
+			end
+		end
+		log("  " .. tostring(c:key()) .. " " .. table.concat(states, ",") .. " " .. table.concat(extra, " "))
+	end
+end
+
+local function probe_grid()
+	local parent = find_uicomponent(core:get_ui_root(), PANEL, "holder_symptoms_grid", "slot_parent")
+	if not parent then log("probe grid: no slot_parent") return end
+	for i = 0, parent:ChildCount() - 1 do
+		local slot = UIComponent(parent:Find(i))
+		local ok, cco = pcall(slot.GetContextObjectId, slot, "CcoPlagueComponentUiDataRecord")
+		local item = find_uicomponent(slot, "slot_item")
+		local ok2, ing = pcall(function() return item:GetContextObjectId("CcoCampaignPlagueIngredient") end)
+		log("probe slot " .. i .. " " .. tostring(slot:Id()) .. " record=" .. tostring(ok and cco)
+			.. " ingredient=" .. tostring(ok2 and ing))
+	end
+	local segments = find_uicomponent(core:get_ui_root(), PANEL, "holder_symptoms_grid", "node_segment_list")
+	if not segments then log("probe grid: no node_segment_list") return end
+	for i = 0, segments:ChildCount() - 1 do
+		local group = UIComponent(segments:Find(i))
+		local ok, cco = pcall(group.GetContextObjectId, group, "CcoPlagueComponentUiDataRecord")
+		local links = {}
+		for j = 0, group:ChildCount() - 1 do
+			local seg = UIComponent(group:Find(j))
+			local ok2, to = pcall(seg.GetContextObjectId, seg, "CcoPlagueComponentUiDataRecord")
+			links[#links + 1] = tostring(seg:Id()) .. "->" .. tostring(ok2 and to)
+		end
+		log("probe segments " .. tostring(group:Id()) .. " from=" .. tostring(ok and cco) .. " : " .. table.concat(links, " "))
+	end
+end
+
 local function on_plague_ritual(faction)
 	charge(faction)
+	cm:callback(function() pcall(probe_components, "after plague") end, 0.5) -- PROBE
 	refresh_panel() -- switch Infect off at once if the next plague is now unaffordable
-	-- after the infection events this ritual triggers, as nurgle_plagues does
-	cm:callback(function()
-		reshuffle()
-		reopen_panel()
-	end, 0.5)
+end
+
+local function on_turn_start()
+	pcall(probe_components, "turn start") -- PROBE
+	reshuffle()
+	log("grid reshuffled, turn " .. cm:model():turn_number())
+	refresh_panel()
 end
 
 local function on_first_tick()
@@ -265,6 +322,7 @@ listen("panel_opened", "PanelOpenedCampaign",
 	function()
 		refresh_panel()
 		cm:callback(refresh_panel, 0.1) -- the panel may still be building
+		cm:callback(function() pcall(probe_grid) end, 0.3) -- PROBE
 	end)
 
 -- PROBE (temporary): what the window tells us about the selected symptoms, to fill the effect
@@ -299,7 +357,7 @@ listen("panel_click", "ComponentLClickUp",
 
 listen("turn_start", "FactionTurnStart",
 	function(context) return context:faction():name() == PESTILENS and context:faction():is_human() end,
-	function() refresh_panel() end)
+	function() on_turn_start() end)
 
 cm:add_first_tick_callback(function()
 	local ok, err = pcall(on_first_tick)

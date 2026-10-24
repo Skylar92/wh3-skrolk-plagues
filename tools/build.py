@@ -9,6 +9,7 @@ The release pack is the default; --spike builds the throwaway probe from plan Ta
 import shutil
 import sys
 
+from tools.cco import CCO_PATH, make_plague_cco
 from tools.dbtable import decode_table, encode_table, load_schema
 from tools.effects import make_effect_loc, make_effect_tables
 from tools.feature import make_feature_loc, make_feature_tables
@@ -70,7 +71,8 @@ def build(out_path, variant="release", lang="ru"):
         tables = merge_tables(make_feature_tables(table) + make_effect_tables(table) + make_symptom_tables(table))
         loc = make_feature_loc(lang) + make_effect_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
         core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
-        scripts = {CORE_SCRIPT: render_core(core, symptom_keys()).encode("utf-8")}
+        scripts = {CORE_SCRIPT: render_core(core, symptom_keys()).encode("utf-8"),
+                   CCO_PATH: make_plague_cco(read_pack(GAME_DATA / "ui.pack")[CCO_PATH].decode("utf-8")).encode("utf-8")}
     files = {f"db/{t.name}/{TABLE_FILE}": encode_table(schema, t) for t in tables}
     files[f"text/db/{TABLE_FILE}.loc"] = encode_loc(loc)
     files.update(scripts)

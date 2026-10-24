@@ -130,21 +130,52 @@ def test_charge_capped_when_short(g):
     assert ("treasury_mod", PESTILENS, -300) in calls(g)
 
 
-def test_grid_reshuffled_after_plague(g):
-    first_tick(g)
-    before = py_list(g.CONTEXT_VALUES["random_plague_component_list_" + PESTILENS])
-    g.RANDOM = g.lua.table_from([25 - i for i in range(30)])
-    g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
-    after = py_list(g.CONTEXT_VALUES["random_plague_component_list_" + PESTILENS])
-    assert before != after
-
-
 def test_other_rituals_ignored(g):
     first_tick(g)
     n = len(calls(g))
     g.fire("RitualStartedEvent", g.ritual_context("wh2_main_ritual_skv_thirteen", PESTILENS))
     g.fire("RitualStartedEvent", g.ritual_context(DIRECT, "wh_main_emp_empire"))
     assert len(calls(g)) == n
+
+
+def grid_now(g):
+    return py_list(g.CONTEXT_VALUES["random_plague_component_list_" + PESTILENS])
+
+
+def turn_start(g, turn):
+    g.TURN = turn
+    g.fire("FactionTurnStart", g.faction_context(PESTILENS))
+
+
+def make_plague(g, ritual=DIRECT):
+    g.fire("RitualStartedEvent", g.ritual_context(ritual, PESTILENS))
+
+
+def test_grid_kept_within_the_turn(g):
+    # author 2026-10-25: the grid changes every turn; within a turn several plagues use one layout
+    first_tick(g)
+    before = grid_now(g)
+    g.RANDOM = g.lua.table_from([25 - i for i in range(30)])
+    make_plague(g)
+    make_plague(g, "wh3_main_ritual_nur_plague_target_settlement")
+    assert grid_now(g) == before
+
+
+def test_grid_reshuffled_every_turn(g):
+    first_tick(g)
+    before = grid_now(g)
+    g.RANDOM = g.lua.table_from([25 - i for i in range(30)])
+    turn_start(g, 2)
+    assert grid_now(g) != before
+
+
+def test_ai_turn_start_does_not_reshuffle(g):
+    first_tick(g)
+    before = grid_now(g)
+    g.RANDOM = g.lua.table_from([25 - i for i in range(30)])
+    g.TURN = 2
+    g.fire("FactionTurnStart", g.faction_context("wh_main_emp_empire"))
+    assert grid_now(g) == before
 
 
 def test_state_roundtrip(g):
@@ -167,7 +198,7 @@ def test_fresh_state_when_nothing_saved(g):
 
 
 def test_no_cooldown_left():
-    assert "cooldown_until" not in TEMPLATE and "COOLDOWN" not in TEMPLATE
+    assert "cooldown_until" not in TEMPLATE and "COOLDOWN_TURNS" not in TEMPLATE
 
 
 def test_no_plain_find():
@@ -199,14 +230,6 @@ def test_infect_enabled_and_price_shown_when_affordable(g):
     infect = g.UI["button_infect_target"]
     assert infect.visible is True and infect.disabled is False
     assert g.UI["dy_cost"].text == "20 [[img:icon_skaven_food]][[/img]]  2500 [[img:icon_treasury]][[/img]]"
-
-
-def test_window_reopened_after_plague_to_show_new_grid(g):
-    first_tick(g)
-    open_panel(g)
-    g.fire("RitualStartedEvent", g.ritual_context(DIRECT, PESTILENS))
-    # the window reads the grid only when it opens: close it with its own button, reopen from the HUD
-    assert calls(g, "click") == [("click", "button_close"), ("click", "button_nurgle_plagues")]
 
 
 def test_infect_off_when_slot_levels_make_it_unaffordable(g):
