@@ -120,3 +120,8 @@ def test_release_ships_the_plague_window_script(release):
     from tools.cco import CCO_PATH
     cco = release[CCO_PATH].decode("utf-8")
     assert '"skrolkpl_positive"' in cco and '"plague_effect_set_nurgle_positive"' in cco
+
+
+def test_release_ships_the_plague_tooltip(release):
+    from tools.tooltip import TOOLTIP_PATH
+    assert b"skrolkpl_strain_ours_line" in release[TOOLTIP_PATH]

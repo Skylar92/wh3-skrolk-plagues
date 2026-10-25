@@ -504,3 +504,25 @@ def test_strain_and_infected_survive_save(g):
         f({})
     assert py_list(g.skrolkpl.persistent.strain) == ["swift_paws"]
     assert g.skrolkpl.persistent.infected.forces["7"] is not None
+
+
+def test_strain_text_published_for_the_plague_tooltip(g):
+    # the tooltip copy shows these script values on Skrolk's infections
+    g.LOCALISED = g.lua.table_from({
+        "effects_description_wh_main_effect_force_stat_armour": "Armour: %+n",
+        "effects_description_wh_main_effect_force_stat_leadership": "Leadership: %+n",
+    })
+    first_tick(g)
+    set_strain(g, ["thick_hide", "burrow_panic"])
+    g.skrolkpl.publish_strain()
+    ours = g.CONTEXT_VALUES["skrolkpl_strain_ours"]
+    enemy = g.CONTEXT_VALUES["skrolkpl_strain_enemy"]
+    assert "[[col:green]]Armour: +10[[/col]]" in ours and "[[col:red]]Leadership: -6[[/col]]" in ours
+    assert "[[col:red]]Armour: -10[[/col]]" in enemy and "Leadership" not in enemy
+
+
+def test_clean_strain_hides_the_tooltip_lines(g):
+    first_tick(g)
+    set_strain(g, [])
+    g.skrolkpl.publish_strain()
+    assert g.CONTEXT_VALUES["skrolkpl_strain_ours"] == "" and g.CONTEXT_VALUES["skrolkpl_strain_enemy"] == ""

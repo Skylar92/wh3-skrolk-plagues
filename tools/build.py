@@ -20,6 +20,7 @@ from tools.render import render_core
 from tools.rots import ROTS, make_rot_loc, make_rot_tables
 from tools.rows import empty_like
 from tools.spike import make_spike_loc, make_spike_tables
+from tools.tooltip import TOOLTIP_PATH, make_plague_tooltip
 from tools.symptoms import START_SYMPTOM, make_symptom_loc, make_symptom_tables, symptom_keys
 
 PACK_NAME = "skrolk_plagues.pack"
@@ -74,8 +75,12 @@ def build(out_path, variant="release", lang="ru"):
         loc = (make_feature_loc(lang) + make_effect_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
                + make_rot_loc(lang))
         core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
-        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM, ROTS).encode("utf-8"),
-                   CCO_PATH: make_plague_cco(read_pack(GAME_DATA / "ui.pack")[CCO_PATH].decode("utf-8")).encode("utf-8")}
+        effects = table("effects_tables")
+        positive_good = {r[effects.col("effect")]: r[effects.col("is_positive_value_good")] for r in effects.rows}
+        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM, ROTS, positive_good).encode("utf-8"),
+                   CCO_PATH: make_plague_cco(read_pack(GAME_DATA / "ui.pack")[CCO_PATH].decode("utf-8")).encode("utf-8"),
+                   TOOLTIP_PATH: make_plague_tooltip(
+                       read_pack(GAME_DATA / "ui3.pack")[TOOLTIP_PATH].decode("utf-8")).encode("utf-8")}
     files = {f"db/{t.name}/{TABLE_FILE}": encode_table(schema, t) for t in tables}
     files[f"text/db/{TABLE_FILE}.loc"] = encode_loc(loc)
     files.update(scripts)

@@ -320,11 +320,13 @@ local TEXT = {
 		ours = "Клан Пестиленс", others = "Прочие фракции",
 		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Каждый уровень слота: +2 " .. FOOD_ICON,
 		food = "Нужно %d " .. FOOD_ICON, gold = "Нужно %d " .. GOLD_ICON,
+		strain_ours = "Порча штамма (Пестиленс): ", strain_enemy = "Порча штамма (враги): ",
 	},
 	en = {
 		ours = "Clan Pestilens", others = "Other factions",
 		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Each slot level: +2 " .. FOOD_ICON,
 		food = "Needs %d " .. FOOD_ICON, gold = "Needs %d " .. GOLD_ICON,
+		strain_ours = "Strain rot (Pestilens): ", strain_enemy = "Strain rot (enemy): ",
 	},
 }
 
@@ -477,6 +479,34 @@ local function restrain(old, new)
 	end
 end
 
+-- "Armour: +10" in green or red, from the game's own effect text.
+local function effect_text(effect, value, good)
+	local text = common.get_localised_string("effects_description_" .. effect)
+	if text == nil or text == "" then text = effect .. ": %+n" end
+	local number = value == math.floor(value) and string.format("%d", value) or string.format("%.1f", value)
+	if value > 0 then number = "+" .. number end
+	text = string.gsub(text, "%%%+n", number)
+	text = string.gsub(text, "%%n", number)
+	return (good and "[[col:green]]" or "[[col:red]]") .. text .. "[[/col]]"
+end
+
+-- The strain as two lines for the plague tooltip (our copy of tooltip_dlc25_active_plague shows them on
+-- Skrolk's infections); empty lines hide.
+function skrolkpl.publish_strain()
+	local t = text()
+	for _, side in ipairs({ "ours", "enemy" }) do
+		local parts = {}
+		for _, id in ipairs(skrolkpl.persistent.strain) do
+			local rot = ROT_BY_ID[id]
+			for _, e in ipairs(rot and rot["show_" .. side] or {}) do
+				parts[#parts + 1] = effect_text(e[1], e[3], e[4])
+			end
+		end
+		local line = #parts > 0 and (t["strain_" .. side] .. table.concat(parts, "; ")) or ""
+		common.set_context_value("skrolkpl_strain_" .. side, line)
+	end
+end
+
 -- An event message: what the strain does to Pestilens and to the enemy, or "the strain holds".
 local function announce(faction, strain)
 	if #strain == 0 then
@@ -562,6 +592,7 @@ local function on_plague_ritual(faction)
 	skrolkpl.persistent.strain = skrolkpl.roll_strain()
 	restrain(old, skrolkpl.persistent.strain)
 	log("strain: " .. (#skrolkpl.persistent.strain > 0 and table.concat(skrolkpl.persistent.strain, ", ") or "clean"))
+	skrolkpl.publish_strain()
 	announce(faction, skrolkpl.persistent.strain)
 	-- the engine marks the plague's symptoms as resting after the infection events
 	cm:callback(function()
@@ -595,6 +626,7 @@ local function on_first_tick()
 	end
 	apply_unlocked(faction)
 	if skrolkpl.persistent.grid then publish_grid() else reshuffle(faction) end
+	skrolkpl.publish_strain() -- script values are not saved; publish them again on every load
 	log("ready, turn " .. cm:model():turn_number())
 end
 
