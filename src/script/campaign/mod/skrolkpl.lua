@@ -48,7 +48,7 @@ local GRID_TRIES = 20
 
 -- Links between the window's 18 grid slots (slot = CcoPlagueComponentUiDataRecord id, 0-based), read
 -- from the open window by a probe on 2026-10-25; the engine keeps them in its own "Jade" data. Grid
--- list entry i (1-based) fills slot i - 1.
+-- entry i (1-based) is slot i - 1; the window lays the published list out backwards (publish_grid).
 local SLOT_LINKS = {
 	[0] = { 2, 3, 8 }, [1] = { 2, 4, 11 }, [2] = { 5 }, [3] = { 6, 7 }, [4] = { 5, 9 }, [5] = { 6 },
 	[6] = { 10 }, [7] = { 8, 14 }, [8] = { 16 }, [9] = { 11, 12 }, [10] = { 12, 13 }, [11] = { 17 },
@@ -238,9 +238,12 @@ local function food_of(faction)
 	return faction:pooled_resource_manager():resource(FOOD_RESOURCE):value()
 end
 
--- The window's counter ("... until new symptom locations") is always 1: a new layout next turn.
+-- The window fills slot n from list entry #list - n (the self-check saw it), so the grid goes out
+-- reversed. Its counter ("... until new symptom locations") is always 1: a new layout next turn.
 local function publish_grid()
-	common.set_context_value("random_plague_component_list_" .. PESTILENS, skrolkpl.persistent.grid)
+	local grid, list = skrolkpl.persistent.grid, {}
+	for i = #grid, 1, -1 do list[#list + 1] = grid[i] end
+	common.set_context_value("random_plague_component_list_" .. PESTILENS, list)
 	common.set_context_value("random_plague_creation_count_" .. PESTILENS, 1)
 end
 

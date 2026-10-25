@@ -142,7 +142,16 @@ def test_other_rituals_ignored(g):
 
 
 def grid_now(g):
-    return py_list(g.CONTEXT_VALUES["random_plague_component_list_" + PESTILENS])
+    # the window lays the published list out backwards; the script's grid is the slot order
+    return py_list(g.CONTEXT_VALUES["random_plague_component_list_" + PESTILENS])[::-1]
+
+
+def test_window_gets_the_grid_backwards(g):
+    # in game the self-check showed slot n holding list entry 18 - n (all 18 mismatched): publish the
+    # grid reversed so slot n shows grid entry n + 1, as SLOT_LINKS assumes
+    first_tick(g)
+    published = py_list(g.CONTEXT_VALUES["random_plague_component_list_" + PESTILENS])
+    assert published == py_list(g.skrolkpl.persistent.grid)[::-1]
 
 
 def turn_start(g, turn):
