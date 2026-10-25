@@ -124,4 +124,4 @@ def test_release_ships_the_plague_window_script(release):
 
 def test_release_ships_the_plague_tooltip(release):
     from tools.tooltip import TOOLTIP_PATH
-    assert b"skrolkpl_strain_ours_line" in release[TOOLTIP_PATH]
+    assert b"skrolkpl_strain_line_1" in release[TOOLTIP_PATH]

@@ -13,14 +13,16 @@ def _lua_value(v):
     return repr(float(v))
 
 
-def lua_rots(rots, positive_good=None):
+def lua_rots(rots, positive_good=None, icons=None):
     """The rot catalogue as a Lua list: id, kind, weight, bundle keys per side/target, effects per side.
 
     Each shown effect carries whether it is good for the side it lands on, from effects_tables'
-    is_positive_value_good (`positive_good`: {effect: bool}; missing -> bigger is better).
+    is_positive_value_good (`positive_good`: {effect: bool}; missing -> bigger is better), and its icon
+    path (`icons`: {effect: (icon, icon_negative)}, under ui/campaign ui/effect_bundles/).
     """
     from tools.rots import rot_bundles
     positive_good = positive_good or {}
+    icons = icons or {}
     items = []
     for rot in rots:
         b = rot_bundles(rot)
@@ -28,8 +30,11 @@ def lua_rots(rots, positive_good=None):
             out = []
             for effect, scope, value in es:
                 good = (value > 0) == positive_good.get(effect, True)
-                out.append("{ %s, %s, %s, %s }" % (_lua_value(effect), _lua_value(scope), _lua_value(value),
-                                                   "true" if good else "false"))
+                icon, icon_negative = icons.get(effect, (None, None))
+                icon = icon if good else (icon_negative or icon)
+                path = "ui/campaign ui/effect_bundles/" + icon if icon else None
+                out.append("{ %s, %s, %s, %s, %s }" % (_lua_value(effect), _lua_value(scope), _lua_value(value),
+                                                       "true" if good else "false", _lua_value(path)))
             return ", ".join(out)
         items.append(
             '{ id = "%s", kind = "%s", weight = %d, ours_force = %s, ours_region = %s, enemy_force = %s, '
@@ -40,7 +45,7 @@ def lua_rots(rots, positive_good=None):
     return "{\n\t" + ",\n\t".join(items) + ",\n}"
 
 
-def render_core(template, symptom_keys, start_symptom, rots, positive_good=None):
+def render_core(template, symptom_keys, start_symptom, rots, positive_good=None, icons=None):
     if start_symptom not in symptom_keys:
         raise ValueError("start symptom not in the catalogue: " + start_symptom)
     for marker in ("{} --@@SYMPTOM_KEYS@@", '"" --@@START_SYMPTOM@@', "{} --@@ROTS@@"):
@@ -48,4 +53,4 @@ def render_core(template, symptom_keys, start_symptom, rots, positive_good=None)
             raise ValueError("marker missing: " + marker)
     return (template.replace("{} --@@SYMPTOM_KEYS@@", lua_string_list(symptom_keys))
             .replace('"" --@@START_SYMPTOM@@', '"%s"' % start_symptom)
-            .replace("{} --@@ROTS@@", lua_rots(rots, positive_good)))
+            .replace("{} --@@ROTS@@", lua_rots(rots, positive_good, icons)))

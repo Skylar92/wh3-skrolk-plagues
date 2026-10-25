@@ -1,17 +1,18 @@
 """Our copy of the active plague tooltip (ui/campaign ui/tooltip_dlc25_active_plague.twui.xml).
 
 The engine builds a plague's tooltip from its composition (the symptoms picked in the window); a script
-cannot add the strain rot to it. So two text lines are added after "immunity duration": they show texts
-the campaign script publishes (common.set_context_value) and are visible only on infections whose
-composition holds our symptoms. Nurgle's tooltips are unchanged.
+cannot add the strain rot to it. The tooltip lists one section per faction set ("Plague effects on
+Pestilens / Non-Pestilens forces and settlements"), each a list of effect lines. We add rot lines to that
+section template, after its effects: line i shows the script value "skrolkpl_strain_ours_i" in the
+Pestilens section and "skrolkpl_strain_enemy_i" in the Non-Pestilens one (the campaign script publishes
+them with common.set_context_value). Other sections (Nurgle's sets) never show them.
 """
 import uuid
 
 TOOLTIP_PATH = "ui/campaign ui/tooltip_dlc25_active_plague.twui.xml"
-# (component id, script object holding its text)
-STRAIN_LINES = (("skrolkpl_strain_ours_line", "skrolkpl_strain_ours"),
-                ("skrolkpl_strain_enemy_line", "skrolkpl_strain_enemy"))
-_HIERARCHY_ANCHOR = '\t\t\t\t<immunity_duration this="6BCBF6A6-065C-496B-9C743C7F79BD3830"/>\n'
+LINE_COUNT = 6  # rots per strain (3) x effects per rot (up to 2)
+STRAIN_LINES = tuple("skrolkpl_strain_line_%d" % i for i in range(1, LINE_COUNT + 1))
+_HIERARCHY_ANCHOR = "\t\t\t\t\t\t</template_effect_bundle>\n"
 _COMPONENT_ANCHOR = "\t\t</immunity_duration>\n"
 
 
@@ -24,14 +25,17 @@ def _q(text):
     return text.replace('"', "&quot;").replace("&&", "&amp;&amp;")
 
 
-def _component(comp_id, script_object, n):
+def _component(comp_id, n):
     this, state = _guid(comp_id), _guid(comp_id + "/state")
-    text = 'ScriptObjectContext("%s").StringValue' % script_object
-    visible = 'PlagueCompositionContext.PlagueIngredientList.Any(Key.Contains("skrolkpl_sym_")) && %s != ""' % text
+    ours = 'ScriptObjectContext("skrolkpl_strain_ours_%d").StringValue' % n
+    enemy = 'ScriptObjectContext("skrolkpl_strain_enemy_%d").StringValue' % n
+    is_ours = 'FactionSetList[0] == CcoFactionSetRecord("skrolkpl_positive")'
+    is_enemy = 'FactionSetList[0] == CcoFactionSetRecord("skrolkpl_negative")'
+    label = 'GetIfElse(%s, %s, GetIfElse(%s, %s, ""))' % (is_ours, ours, is_enemy, enemy)
+    visible = '(%s && %s != "") || (%s && %s != "")' % (is_ours, ours, is_enemy, enemy)
     return f'''\t\t<{comp_id}
 \t\t\tthis="{this}"
 \t\t\tid="{comp_id}"
-\t\t\toffset="0.00,200.00"
 \t\t\tallowhorizontalresize="false"
 \t\t\ttooltipslocalised="true"
 \t\t\tuniqueguid="{this}"
@@ -40,28 +44,23 @@ def _component(comp_id, script_object, n):
 \t\t\t<callbackwithcontextlist>
 \t\t\t\t<callback_with_context
 \t\t\t\t\tcallback_id="ContextTextLabel"
-\t\t\t\t\tcontext_object_id="CcoCampaignPlagueInfection"
-\t\t\t\t\tcontext_function_id="{_q(text)}"/>
+\t\t\t\t\tcontext_object_id="CcoPlagueEffectList"
+\t\t\t\t\tcontext_function_id="{_q(label)}"/>
 \t\t\t\t<callback_with_context
 \t\t\t\t\tcallback_id="ContextVisibilitySetter"
-\t\t\t\t\tcontext_object_id="CcoCampaignPlagueInfection"
+\t\t\t\t\tcontext_object_id="CcoPlagueEffectList"
 \t\t\t\t\tcontext_function_id="{_q(visible)}"/>
-\t\t\t\t<callback_with_context
-\t\t\t\t\tcallback_id="ContextVisibilitySetter"
-\t\t\t\t\tcontext_object_id="CcoCampaignPlagueComposition"
-\t\t\t\t\tcontext_function_id="false"/>
 \t\t\t</callbackwithcontextlist>
 \t\t\t<states>
 \t\t\t\t<newstate
 \t\t\t\t\tthis="{state}"
 \t\t\t\t\tname="NewState"
-\t\t\t\t\twidth="440"
+\t\t\t\t\twidth="439"
 \t\t\t\t\theight="26"
 \t\t\t\t\tuniqueguid="{state}">
 \t\t\t\t\t<component_text
-\t\t\t\t\t\ttextvalign="Bottom"
-\t\t\t\t\t\ttextxoffset="12.00,8.00"
-\t\t\t\t\t\ttextyoffset="2.00,8.00"
+\t\t\t\t\t\ttextxoffset="14.00,6.00"
+\t\t\t\t\t\ttextyoffset="4.00,6.00"
 \t\t\t\t\t\ttexthbehaviour="Resize"
 \t\t\t\t\t\ttextlabel="StateText_skrolkpl_{n}"
 \t\t\t\t\t\tfont_m_size="12"
@@ -84,7 +83,7 @@ def _make(vanilla):
     for anchor in (_HIERARCHY_ANCHOR, _COMPONENT_ANCHOR):
         if vanilla.count(anchor) != 1:
             raise ValueError("unexpected tooltip layout: anchor not found once: " + anchor.strip())
-    hierarchy = "".join('\t\t\t\t<%s this="%s"/>\n' % (comp_id, _guid(comp_id)) for comp_id, _ in STRAIN_LINES)
-    components = "".join(_component(comp_id, obj, n) for n, (comp_id, obj) in enumerate(STRAIN_LINES))
+    hierarchy = "".join('\t\t\t\t\t\t<%s this="%s"/>\n' % (comp_id, _guid(comp_id)) for comp_id in STRAIN_LINES)
+    components = "".join(_component(comp_id, n) for n, comp_id in enumerate(STRAIN_LINES, 1))
     out = vanilla.replace(_HIERARCHY_ANCHOR, _HIERARCHY_ANCHOR + hierarchy)
     return out.replace(_COMPONENT_ANCHOR, _COMPONENT_ANCHOR + components)

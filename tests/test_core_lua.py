@@ -18,7 +18,9 @@ DIRECT = "wh3_main_ritual_nur_plague_target_army"
 def g():
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(MOCK)
-    lua.execute(render_core(TEMPLATE, KEYS, KEYS[0], ROTS))
+    icons = {"wh_main_effect_force_stat_armour": ("armour.png", "armour.png"),
+             "wh_main_effect_force_stat_leadership": ("leadership.png", "leadership.png")}
+    lua.execute(render_core(TEMPLATE, KEYS, KEYS[0], ROTS, None, icons))
     g = lua.globals()
     g.lua = lua
     return g
@@ -472,18 +474,18 @@ def test_new_plague_swaps_the_strain_on_everyone_infected(g):
     assert ("apply_effect_bundle_to_force", bundles(new[0], "enemy", "force"), 7, 3) in calls(g) or         bundles(new[0], "enemy", "force") is None
 
 
-def test_strain_message_shows_both_sides(g):
-    # author: the message must show what the strain does to Pestilens and what to the enemy
+def test_strain_message_is_one_plate_of_our_effects(g):
+    # author: one plate; it shows our pluses and minuses (the game colours it); the enemy side is in
+    # the plague tooltip
     first_tick(g)
     g.RANDOM = g.lua.table_from([60] + [1] * 30)
     make_plague(g)
     assert ("launch_custom_incident", "skrolkpl_incident_strain_changed", PESTILENS) in calls(g)
     rid = py_list(g.skrolkpl.persistent.strain)[0]
     rot = next(r for r in ROTS if r.id == rid)
-    shown = {b.key: [tuple(e[i] for i in (1, 2, 3)) for e in b.effects.values()]
-             for b in g.LAUNCHED.payload.bundles.values()}
-    assert shown["skrolkpl_strain_ours"] == [tuple(e) for e in rot.ours]
-    assert shown.get("skrolkpl_strain_enemy", []) == [tuple(e) for e in rot.enemy]
+    plates = list(g.LAUNCHED.payload.bundles.values())
+    assert len(plates) == 1 and plates[0].key == "skrolkpl_strain_ours"
+    assert [tuple(e[i] for i in (1, 2, 3)) for e in plates[0].effects.values()] == [tuple(e) for e in rot.ours]
 
 
 def test_clean_strain_message(g):
@@ -515,17 +517,20 @@ def test_strain_text_published_for_the_plague_tooltip(g):
     first_tick(g)
     set_strain(g, ["thick_hide", "burrow_panic"])
     g.skrolkpl.publish_strain()
-    ours = g.CONTEXT_VALUES["skrolkpl_strain_ours"]
-    enemy = g.CONTEXT_VALUES["skrolkpl_strain_enemy"]
-    assert "[[col:green]]Armour: +10[[/col]]" in ours and "[[col:red]]Leadership: -6[[/col]]" in ours
-    assert "[[col:red]]Armour: -10[[/col]]" in enemy and "Leadership" not in enemy
+    ours = [g.CONTEXT_VALUES["skrolkpl_strain_ours_%d" % i] for i in range(1, 7)]
+    enemy = [g.CONTEXT_VALUES["skrolkpl_strain_enemy_%d" % i] for i in range(1, 7)]
+    assert "[[col:green]]Armour: +10" in ours[0] and "[[col:red]]Leadership: -6" in ours[1]
+    assert ours[0].startswith("[[img:")  # the effect's own icon, like the plague's effect lines
+    assert ours[2:] == [""] * 4
+    assert "[[col:red]]Armour: -10" in enemy[0] and enemy[1:] == [""] * 5
 
 
 def test_clean_strain_hides_the_tooltip_lines(g):
     first_tick(g)
     set_strain(g, [])
     g.skrolkpl.publish_strain()
-    assert g.CONTEXT_VALUES["skrolkpl_strain_ours"] == "" and g.CONTEXT_VALUES["skrolkpl_strain_enemy"] == ""
+    assert all(g.CONTEXT_VALUES["skrolkpl_strain_%s_%d" % (side, i)] == ""
+               for side in ("ours", "enemy") for i in range(1, 7))
 
 
 def test_strain_message_bundles_leave_the_faction(g):
@@ -546,3 +551,25 @@ def test_saved_grid_with_dropped_symptoms_is_rebuilt(g):
         f({})
     first_tick(g)
     assert set(py_list(g.skrolkpl.persistent.grid)) <= set(KEYS)
+
+
+def test_strains_are_sometimes_all_bad_sometimes_all_good_sometimes_mixed(g):
+    # author saw only mixed strains in a few tries; over many rolls every kind of outcome must turn up
+    import random
+    rng = random.Random(13)
+    g.RANDOM_FN = lambda n: rng.randint(1, n)
+    good = {r.id for r in ROTS if r.kind == "gift"}
+    outcome = {"clean": 0, "all_good": 0, "all_bad": 0, "mixed": 0}
+    for _ in range(10000):
+        strain = py_list(g.skrolkpl.roll_strain())
+        if not strain:
+            outcome["clean"] += 1
+        elif all(r in good for r in strain):
+            outcome["all_good"] += 1
+        elif not any(r in good for r in strain):
+            outcome["all_bad"] += 1
+        else:
+            outcome["mixed"] += 1
+    assert 4500 < outcome["clean"] < 5500                     # 50 %
+    # one rot: half gifts; two or three: mostly mixed, sometimes one-sided
+    assert outcome["all_bad"] > 1500 and outcome["all_good"] > 1500 and outcome["mixed"] > 600, outcome

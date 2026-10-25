@@ -22,7 +22,8 @@ local START_SYMPTOM = "" --@@START_SYMPTOM@@
 local ROTS = {} --@@ROTS@@
 local ROT_BY_ID = {}
 for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
-local STRAIN_BUNDLES = { ours = "skrolkpl_strain_ours", enemy = "skrolkpl_strain_enemy" }
+local STRAIN_BUNDLE = "skrolkpl_strain_ours"
+local STRAIN_LINES = 6 -- rot lines per side in the plague tooltip (3 rots x up to 2 effects)
 local BASE_DURATION = 3 -- plague duration at duration level 0 (Nurgle's slot: 3/4/5/6 turns)
 local INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
 local INCIDENT_STABLE = "skrolkpl_incident_strain_stable"
@@ -320,13 +321,13 @@ local TEXT = {
 		ours = "Клан Пестиленс", others = "Прочие фракции",
 		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Каждый уровень слота: +2 " .. FOOD_ICON,
 		food = "Нужно %d " .. FOOD_ICON, gold = "Нужно %d " .. GOLD_ICON,
-		strain_ours = "Порча штамма (Пестиленс): ", strain_enemy = "Порча штамма (враги): ",
+		rot_mark = " (порча)",
 	},
 	en = {
 		ours = "Clan Pestilens", others = "Other factions",
 		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Each slot level: +2 " .. FOOD_ICON,
 		food = "Needs %d " .. FOOD_ICON, gold = "Needs %d " .. GOLD_ICON,
-		strain_ours = "Strain rot (Pestilens): ", strain_enemy = "Strain rot (enemy): ",
+		rot_mark = " (rot)",
 	},
 }
 
@@ -480,30 +481,33 @@ local function restrain(old, new)
 end
 
 -- "Armour: +10" in green or red, from the game's own effect text.
-local function effect_text(effect, value, good)
+local function effect_text(effect, value, good, icon)
 	local text = common.get_localised_string("effects_description_" .. effect)
 	if text == nil or text == "" then text = effect .. ": %+n" end
 	local number = value == math.floor(value) and string.format("%d", value) or string.format("%.1f", value)
 	if value > 0 then number = "+" .. number end
 	text = string.gsub(text, "%%%+n", number)
 	text = string.gsub(text, "%%n", number)
-	return (good and "[[col:green]]" or "[[col:red]]") .. text .. "[[/col]]"
+	local line = (good and "[[col:green]]" or "[[col:red]]") .. text .. "[[/col]]"
+	if icon then line = "[[img:" .. icon .. "]][[/img]] " .. line end
+	return line
 end
 
--- The strain as two lines for the plague tooltip (our copy of tooltip_dlc25_active_plague shows them on
--- Skrolk's infections); empty lines hide.
+-- The strain's effects for the plague tooltip: our copy of tooltip_dlc25_active_plague shows line i of
+-- a side ("skrolkpl_strain_ours_i" / "_enemy_i") in that side's effect section; empty lines hide.
 function skrolkpl.publish_strain()
 	local t = text()
 	for _, side in ipairs({ "ours", "enemy" }) do
-		local parts = {}
+		local lines = {}
 		for _, id in ipairs(skrolkpl.persistent.strain) do
 			local rot = ROT_BY_ID[id]
 			for _, e in ipairs(rot and rot["show_" .. side] or {}) do
-				parts[#parts + 1] = effect_text(e[1], e[3], e[4])
+				lines[#lines + 1] = effect_text(e[1], e[3], e[4], e[5]) .. t.rot_mark
 			end
 		end
-		local line = #parts > 0 and (t["strain_" .. side] .. table.concat(parts, "; ")) or ""
-		common.set_context_value("skrolkpl_strain_" .. side, line)
+		for i = 1, STRAIN_LINES do
+			common.set_context_value("skrolkpl_strain_" .. side .. "_" .. i, lines[i] or "")
+		end
 	end
 end
 
@@ -513,27 +517,20 @@ local function announce(faction, strain)
 		cm:trigger_incident(PESTILENS, INCIDENT_STABLE, true)
 		return
 	end
-	local payload = cm:create_payload()
-	for _, side in ipairs({ "ours", "enemy" }) do
-		local shown = cm:create_new_custom_effect_bundle(STRAIN_BUNDLES[side])
-		local any = false
-		for _, id in ipairs(strain) do
-			for _, e in ipairs(ROT_BY_ID[id]["show_" .. side]) do
-				shown:add_effect(e[1], e[2], e[3])
-				any = true
-			end
-		end
-		if any then
-			shown:set_duration(skrolkpl.persistent.strain_turns)
-			payload:effect_bundle_to_faction(shown)
-		end
+	-- one plate of our effects; the game colours it by what is inside
+	local shown = cm:create_new_custom_effect_bundle(STRAIN_BUNDLE)
+	for _, id in ipairs(strain) do
+		for _, e in ipairs(ROT_BY_ID[id].show_ours) do shown:add_effect(e[1], e[2], e[3]) end
 	end
+	shown:set_duration(skrolkpl.persistent.strain_turns)
+	local payload = cm:create_payload()
+	payload:effect_bundle_to_faction(shown)
 	local incident = cm:create_incident_builder(INCIDENT_STRAIN)
 	incident:set_payload(payload)
 	cm:launch_custom_incident_from_builder(incident, faction)
 	-- The payload puts the bundles on the faction (top bar); they are only there to list the effects.
 	cm:callback(function()
-		for _, key in pairs(STRAIN_BUNDLES) do cm:remove_effect_bundle(key, PESTILENS) end
+		cm:remove_effect_bundle(STRAIN_BUNDLE, PESTILENS)
 	end, 1)
 end
 

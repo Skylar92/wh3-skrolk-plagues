@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import vanilla_table
-from tools.rots import (COUNT_WEIGHTS, INCIDENT_STABLE, INCIDENT_STRAIN, ROTS, STRAIN_BUNDLES, make_rot_loc,
+from tools.rots import (COUNT_WEIGHTS, INCIDENT_STABLE, INCIDENT_STRAIN, ROTS, STRAIN_BUNDLE, make_rot_loc,
                         make_rot_tables, rot_bundles)
 
 pytestmark = pytest.mark.game
@@ -65,7 +65,7 @@ def test_bundles_split_by_target(tables):
     target = {r["key"]: r["bundle_target"] for r in rows(tables, "effect_bundles_tables")}
     j = rows(tables, "effect_bundles_to_effects_junctions_tables")
     for key, bundle_target in target.items():
-        if key in STRAIN_BUNDLES.values():
+        if key == STRAIN_BUNDLE:
             assert bundle_target == "faction"
             continue
         scopes = {r["effect_scope"] for r in j if r["effect_bundle_key"] == key}
@@ -96,8 +96,7 @@ def test_loc_both_languages():
         loc = dict(make_rot_loc(lang))
         assert loc["incidents_localised_title_" + INCIDENT_STRAIN]
         assert loc["incidents_localised_description_" + INCIDENT_STABLE]
-        assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLES["ours"]]
-        assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLES["enemy"]]
+        assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLE]
         for r in ROTS:
             for side in ("ours", "enemy"):
                 for target in ("force", "region"):

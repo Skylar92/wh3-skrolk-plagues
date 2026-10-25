@@ -63,6 +63,7 @@ cm = {
 	get_faction = function(_, key) return make_faction(key) end,
 	model = function() return { turn_number = function() return TURN end } end,
 	random_number = function(_, max, min)
+		if RANDOM_FN then return RANDOM_FN(max) end
 		local v = table.remove(RANDOM, 1) or 1
 		if v > max then v = max end
 		return v

@@ -77,7 +77,8 @@ def build(out_path, variant="release", lang="ru"):
         core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
         effects = table("effects_tables")
         positive_good = {r[effects.col("effect")]: r[effects.col("is_positive_value_good")] for r in effects.rows}
-        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM, ROTS, positive_good).encode("utf-8"),
+        icons = {r[effects.col("effect")]: (r[effects.col("icon")], r[effects.col("icon_negative")]) for r in effects.rows}
+        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM, ROTS, positive_good, icons).encode("utf-8"),
                    CCO_PATH: make_plague_cco(read_pack(GAME_DATA / "ui.pack")[CCO_PATH].decode("utf-8")).encode("utf-8"),
                    TOOLTIP_PATH: make_plague_tooltip(
                        read_pack(GAME_DATA / "ui3.pack")[TOOLTIP_PATH].decode("utf-8")).encode("utf-8")}

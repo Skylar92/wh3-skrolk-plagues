@@ -1,4 +1,3 @@
-import re
 import xml.etree.ElementTree as ET
 
 import pytest
@@ -24,26 +23,28 @@ def test_still_valid_xml(ours):
     ET.fromstring(ours)
 
 
-def test_strain_lines_follow_immunity_in_the_hierarchy(ours):
+def test_rot_lines_sit_in_each_effect_section_after_the_effects(ours):
+    # author: the rot belongs among "Plague effects on Pestilens / Non-Pestilens", not under the tooltip
     root = ET.fromstring(ours)
+    section = root.find("hierarchy/root/tooltip_dlc25_active_plague/effect_type_list/template_type")
+    order = [child.tag for child in section]
+    i = order.index("template_effect_bundle")
+    assert order[i + 1:] == list(STRAIN_LINES)
     tooltip = root.find("hierarchy/root/tooltip_dlc25_active_plague")
-    order = [child.tag for child in tooltip]
-    i = order.index("immunity_duration")
-    assert order[i + 1:i + 1 + len(STRAIN_LINES)] == [line for line, _ in STRAIN_LINES]
+    assert not [c.tag for c in tooltip if c.tag.startswith("skrolkpl_")]  # nothing left under the tooltip
 
 
-def test_strain_lines_show_script_text_only_for_skrolk_plagues(ours):
+def test_rot_lines_pick_the_side_by_faction_set(ours):
     root = ET.fromstring(ours)
-    for line, script_object in STRAIN_LINES:
+    for n, line in enumerate(STRAIN_LINES, 1):
         comp = root.find("components/" + line)
-        on_map = {c.get("callback_id"): c.get("context_function_id") for c in comp.iter("callback_with_context")
-                  if c.get("context_object_id") == "CcoCampaignPlagueInfection"}
-        assert 'ScriptObjectContext("%s").StringValue' % script_object in on_map["ContextTextLabel"]
-        visible = on_map["ContextVisibilitySetter"]
-        assert 'Key.Contains("skrolkpl_sym_")' in visible and script_object in visible
-        in_window = [c.get("context_function_id") for c in comp.iter("callback_with_context")
-                     if c.get("context_object_id") == "CcoCampaignPlagueComposition"]
-        assert in_window == ["false"]  # the window's composition tooltip is not a live infection
+        cbs = {c.get("callback_id"): (c.get("context_object_id"), c.get("context_function_id"))
+               for c in comp.iter("callback_with_context")}
+        ctx, label = cbs["ContextTextLabel"]
+        assert ctx == "CcoPlagueEffectList"
+        assert 'CcoFactionSetRecord("skrolkpl_positive")' in label and 'skrolkpl_strain_ours_%d' % n in label
+        assert 'CcoFactionSetRecord("skrolkpl_negative")' in label and 'skrolkpl_strain_enemy_%d' % n in label
+        assert cbs["ContextVisibilitySetter"][0] == "CcoPlagueEffectList"
 
 
 def test_guids_unique(ours):
@@ -53,5 +54,6 @@ def test_guids_unique(ours):
 
 
 def test_rest_untouched(vanilla, ours):
-    for tag in ("title", "effect_type_list", "infection_duration", "spread_chance", "immunity_duration"):
+    for tag in ("title", "effect_type_list", "infection_duration", "spread_chance", "immunity_duration",
+                "template_entry"):
         assert vanilla.count("<%s" % tag) == ours.count("<%s" % tag)

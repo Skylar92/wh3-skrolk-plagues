@@ -14,8 +14,9 @@ from dataclasses import dataclass
 from tools.rows import find, row, table_with
 
 COUNT_WEIGHTS = (50, 30, 15, 5)  # chance in % of 0, 1, 2, 3 rots
-# bases of the scripted bundles the strain message shows: what the strain does to Pestilens, and to the rest
-STRAIN_BUNDLES = {"ours": "skrolkpl_strain_ours", "enemy": "skrolkpl_strain_enemy"}
+# base of the scripted bundle the strain message shows: what the strain does to Pestilens (the enemy
+# side shows in the plague tooltip)
+STRAIN_BUNDLE = "skrolkpl_strain_ours"
 INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
 INCIDENT_STABLE = "skrolkpl_incident_strain_stable"
 INCIDENT_TEMPLATE = "wh3_main_minor_cult_sartosan_vault"  # an incident launched with a scripted payload
@@ -96,9 +97,8 @@ TEXTS = {
            "stable_title": "Штамм устоял",
            "stable_desc": "Новая чума Скролка не испортилась: порчи нет.",
            "ours_title": "Штамм: Клан Пестиленс",
-           "ours_desc": "Эффекты порчи на заражённых армиях и поселениях Клана Пестиленс.",
-           "enemy_title": "Штамм: враги",
-           "enemy_desc": "Эффекты порчи на заражённых армиях и поселениях всех остальных фракций."},
+           "ours_desc": "Эффекты порчи на заражённых армиях и поселениях Клана Пестиленс. "
+                        "Что порча делает врагам, видно в описании чумы."},
     "en": {"bundle_title": "Strain rot: %s", "bundle_desc": "%s. Lasts while Skrolk's plague is on the target.",
            "strain_title": "The Strain Has Changed",
            "strain_desc": "Skrolk's new plague has rotted. The rot holds on everyone infected by Skrolk's "
@@ -106,9 +106,8 @@ TEXTS = {
            "stable_title": "The Strain Holds",
            "stable_desc": "Skrolk's new plague came out clean: no rot.",
            "ours_title": "Strain: Clan Pestilens",
-           "ours_desc": "Rot effects on Clan Pestilens' infected armies and settlements.",
-           "enemy_title": "Strain: the enemy",
-           "enemy_desc": "Rot effects on every other faction's infected armies and settlements."},
+           "ours_desc": "Rot effects on Clan Pestilens' infected armies and settlements. "
+                        "What the rot does to the enemy shows in the plague's tooltip."},
 }
 
 
@@ -144,9 +143,8 @@ def make_rot_tables(table):
                         new_junctions.append(row(junctions, junctions.rows[0], effect_bundle_key=key,
                                                  effect_key=effect, effect_scope=scope, value=value,
                                                  advancement_stage="start_turn_completed"))
-    faction_template = find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur")
-    for key in STRAIN_BUNDLES.values():
-        new_bundles.append(row(bundles, faction_template, key=key))
+    new_bundles.append(row(bundles, find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur"),
+                           key=STRAIN_BUNDLE))
     template = find(incidents, "key", INCIDENT_TEMPLATE)
     return [table_with(bundles, *new_bundles), table_with(junctions, *new_junctions),
             table_with(incidents, row(incidents, template, key=INCIDENT_STRAIN, ui_image=INCIDENT_IMAGE),
@@ -159,10 +157,8 @@ def make_rot_loc(lang):
            ("incidents_localised_description_" + INCIDENT_STRAIN, t["strain_desc"]),
            ("incidents_localised_title_" + INCIDENT_STABLE, t["stable_title"]),
            ("incidents_localised_description_" + INCIDENT_STABLE, t["stable_desc"]),
-           ("effect_bundles_localised_title_" + STRAIN_BUNDLES["ours"], t["ours_title"]),
-           ("effect_bundles_localised_description_" + STRAIN_BUNDLES["ours"], t["ours_desc"]),
-           ("effect_bundles_localised_title_" + STRAIN_BUNDLES["enemy"], t["enemy_title"]),
-           ("effect_bundles_localised_description_" + STRAIN_BUNDLES["enemy"], t["enemy_desc"])]
+           ("effect_bundles_localised_title_" + STRAIN_BUNDLE, t["ours_title"]),
+           ("effect_bundles_localised_description_" + STRAIN_BUNDLE, t["ours_desc"])]
     for rot in ROTS:
         for side in ("ours", "enemy"):
             for target in ("force", "region"):
