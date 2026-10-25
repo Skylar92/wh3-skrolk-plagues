@@ -46,6 +46,7 @@ local DIRECT_RITUALS = {
 }
 local SLOTS = { "duration", "spread", "immunity" }
 local SAVE_KEY = "skrolkpl"
+local UNDER_BUNDLE = "skrolkpl_undercity_plague" -- more spread, shorter immunity above our undercity
 local GRID_TRIES = 20
 
 -- Links between the window's 18 grid slots (slot = CcoPlagueComponentUiDataRecord id, 0-based), read
@@ -82,7 +83,9 @@ skrolkpl = {
 	-- strains: each plague's rot, {[plague id] = {rots = {rot id, ...}, turns = the plague's duration}};
 	-- infected: what Skrolk's plagues hold now, {forces = {[cqi] = target}, regions = {[key] = target}},
 	-- target = {ours = Pestilens' own, plague = plague id or nil}
-	persistent = { grid = nil, unlocked = nil, strains = {}, infected = { forces = {}, regions = {} } },
+	-- undercities: {[region key] = true} that carry the Under-Empire bonus
+	persistent = { grid = nil, unlocked = nil, strains = {}, infected = { forces = {}, regions = {} },
+	               undercities = {} },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
 	pending_strain = nil, -- the new plague's strain until its first infection names the plague
 	created_plague = nil, -- a new plague's id when its first infection came before the ritual
@@ -737,8 +740,24 @@ local function on_plague_ritual(faction)
 	refresh_panel() -- switch Infect off at once if the next plague is now unaffordable
 end
 
+-- The Under-Empire bonus on every region with our undercity; off where the undercity is gone.
+local function refresh_undercities(faction)
+	local now, list = {}, faction:foreign_slot_managers()
+	for i = 0, list:num_items() - 1 do
+		now[list:item_at(i):region():name()] = true
+	end
+	for key in pairs(skrolkpl.persistent.undercities) do
+		if not now[key] then cm:remove_effect_bundle_from_region(UNDER_BUNDLE, key) end
+	end
+	for key in pairs(now) do
+		cm:apply_effect_bundle_to_region(UNDER_BUNDLE, key, 0)
+	end
+	skrolkpl.persistent.undercities = now
+end
+
 local function on_turn_start(faction)
 	reshuffle(faction)
+	refresh_undercities(faction)
 	forget_ended_plagues()
 	log("grid reshuffled, turn " .. cm:model():turn_number())
 	refresh_panel()
@@ -761,6 +780,7 @@ local function on_first_tick()
 		if not known[key] then grid_ok = false end -- a symptom dropped from the catalogue since the save
 	end
 	if grid_ok then publish_grid() else reshuffle(faction) end
+	refresh_undercities(faction)
 	skrolkpl.publish_strains() -- script values are not saved; publish them again on every load
 	log("ready, turn " .. cm:model():turn_number())
 end
@@ -825,6 +845,7 @@ cm:add_loading_game_callback(function(context)
 	skrolkpl.persistent = cm:load_named_value(SAVE_KEY, { grid = nil, unlocked = nil }, context)
 	local p = skrolkpl.persistent
 	p.strains = p.strains or {}
+	p.undercities = p.undercities or {}
 	p.infected = p.infected or { forces = {}, regions = {} }
 	-- saves from before per-plague strains: one strain for all, targets saved as just "ours"
 	p.strain, p.strain_turns = nil, nil

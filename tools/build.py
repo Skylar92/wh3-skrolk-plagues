@@ -21,6 +21,7 @@ from tools.rots import ROTS, make_rot_loc, make_rot_tables
 from tools.rows import empty_like
 from tools.spike import make_spike_loc, make_spike_tables
 from tools.tooltip import TOOLTIP_PATH, make_plague_tooltip
+from tools.under import make_under_loc, make_under_tables
 from tools.symptoms import START_SYMPTOM, make_symptom_loc, make_symptom_tables, symptom_keys
 
 PACK_NAME = "skrolk_plagues.pack"
@@ -71,9 +72,9 @@ def build(out_path, variant="release", lang="ru", always_rot=False):
         scripts = {SPIKE_SCRIPT: (ROOT / "src" / SPIKE_SCRIPT).read_bytes()}
     else:
         tables = merge_tables(make_feature_tables(table) + make_effect_tables(table) + make_symptom_tables(table)
-                              + make_rot_tables(table))
+                              + make_rot_tables(table) + make_under_tables(table))
         loc = (make_feature_loc(lang) + make_effect_loc(lang) + make_symptom_loc(lang, _vanilla_loc(lang))
-               + make_rot_loc(lang))
+               + make_rot_loc(lang) + make_under_loc(lang))
         core = (ROOT / "src" / CORE_SCRIPT).read_text(encoding="utf-8")
         effects = table("effects_tables")
         positive_good = {r[effects.col("effect")]: r[effects.col("is_positive_value_good")] for r in effects.rows}

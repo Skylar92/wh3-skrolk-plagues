@@ -46,6 +46,14 @@ local function make_faction(key)
 	local data = FACTIONS[key]
 	return {
 		plagues = function() return { plague_component_list = function() return component_list() end } end,
+		-- data.undercities: region keys with this faction's undercity
+		foreign_slot_managers = function()
+			local items = {}
+			for i, region_key in ipairs(data.undercities or {}) do
+				items[i] = { region = function() return { name = function() return region_key end } end }
+			end
+			return { num_items = function() return #items end, item_at = function(_, i) return items[i + 1] end }
+		end,
 		name = function() return key end,
 		is_null_interface = function() return data == nil end,
 		is_human = function() return data.human end,

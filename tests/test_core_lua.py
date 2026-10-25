@@ -769,3 +769,51 @@ def test_strain_effects_that_cancel_out_leave_no_line(g):
     set_strain(g, ["swift_paws", "sluggish"])   # movement +10 and -10 for us
     g.skrolkpl.publish_strains()
     assert tooltip_lines(g, ID_A, "ours") == [""] * 6
+
+
+# --- Under-Empire -----------------------------------------------------------
+
+UNDER = "skrolkpl_undercity_plague"
+
+
+def under_calls(g, name):
+    return sorted(c[2] for c in calls(g, name) if c[1] == UNDER)
+
+
+def test_undercity_regions_get_the_plague_bonus(g):
+    # spec goal 13: a city above our undercity spreads plague more easily and resists it worse
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1", "r2"])
+    first_tick(g)
+    assert under_calls(g, "apply_effect_bundle_to_region") == ["r1", "r2"]
+    assert all(c[3] == 0 for c in calls(g, "apply_effect_bundle_to_region") if c[1] == UNDER)  # no end
+
+
+def test_undercity_bonus_follows_the_undercities_each_turn(g):
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1", "r2"])
+    first_tick(g)
+    g.CALLS = g.lua.table_from([])
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r2", "r3"])   # r1 lost, r3 dug
+    turn_start(g, 2)
+    assert under_calls(g, "remove_effect_bundle_from_region") == ["r1"]
+    assert "r3" in under_calls(g, "apply_effect_bundle_to_region")
+
+
+def test_undercities_survive_save(g):
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1"])
+    first_tick(g)
+    for f in g.SAVE_CALLBACKS.values():
+        f({})
+    for f in g.LOAD_CALLBACKS.values():
+        f({})
+    g.CALLS = g.lua.table_from([])
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, [])
+    turn_start(g, 2)
+    assert under_calls(g, "remove_effect_bundle_from_region") == ["r1"]
+
+
+def test_no_undercity_bonus_for_ai_pestilens(g):
+    g.FACTIONS[PESTILENS].human = False
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1"])
+    first_tick(g)
+    turn_start(g, 2)
+    assert under_calls(g, "apply_effect_bundle_to_region") == []
