@@ -32,8 +32,19 @@ def by_sid(sid):
 
 def test_catalogue_size_and_keys():
     keys = symptom_keys()
-    assert len(keys) == 25 and len(set(keys)) == 25
+    assert len(keys) == 23 and len(set(keys)) == 23
     assert all(k.startswith("skrolkpl_sym_") for k in keys)
+
+
+def test_no_two_symptoms_look_alike():
+    # in game two nodes with one icon (Nurgle's growth and our Ratspawn Brood) read as the same symptom
+    icons = [s.icon for s in SYMPTOMS]
+    assert len(set(icons)) == len(icons)
+
+
+def test_nurgle_duplicates_of_skrolk_symptoms_dropped():
+    # Nurgle's growth (settlement_1) and income (settlement_5) duplicate Skrolk's own growth and income
+    assert not {s.nurgle for s in SYMPTOMS} & {"settlement_1", "settlement_5"}
 
 
 def test_no_nurgle_bound_symptoms():

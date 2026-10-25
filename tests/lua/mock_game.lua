@@ -82,6 +82,7 @@ cm = {
 	apply_effect_bundle_to_region = function(_, ...) rec("apply_effect_bundle_to_region", ...) end,
 	remove_effect_bundle_from_region = function(_, ...) rec("remove_effect_bundle_from_region", ...) end,
 	trigger_incident = function(_, ...) rec("trigger_incident", ...) end,
+	remove_effect_bundle = function(_, ...) rec("remove_effect_bundle", ...) end,
 	create_new_custom_effect_bundle = function(_, key)
 		local b = { key = key, effects = {} }
 		function b:add_effect(effect, scope, value) self.effects[#self.effects + 1] = { effect, scope, value } end

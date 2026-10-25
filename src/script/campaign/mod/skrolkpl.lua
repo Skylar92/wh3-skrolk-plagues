@@ -531,6 +531,10 @@ local function announce(faction, strain)
 	local incident = cm:create_incident_builder(INCIDENT_STRAIN)
 	incident:set_payload(payload)
 	cm:launch_custom_incident_from_builder(incident, faction)
+	-- The payload puts the bundles on the faction (top bar); they are only there to list the effects.
+	cm:callback(function()
+		for _, key in pairs(STRAIN_BUNDLES) do cm:remove_effect_bundle(key, PESTILENS) end
+	end, 1)
 end
 
 local function on_force_infection(context)
@@ -625,7 +629,13 @@ local function on_first_tick()
 		skrolkpl.persistent.grid = nil
 	end
 	apply_unlocked(faction)
-	if skrolkpl.persistent.grid then publish_grid() else reshuffle(faction) end
+	local grid_ok = skrolkpl.persistent.grid ~= nil
+	local known = {}
+	for _, key in ipairs(SYMPTOM_KEYS) do known[key] = true end
+	for _, key in ipairs(skrolkpl.persistent.grid or {}) do
+		if not known[key] then grid_ok = false end -- a symptom dropped from the catalogue since the save
+	end
+	if grid_ok then publish_grid() else reshuffle(faction) end
 	skrolkpl.publish_strain() -- script values are not saved; publish them again on every load
 	log("ready, turn " .. cm:model():turn_number())
 end

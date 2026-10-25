@@ -526,3 +526,23 @@ def test_clean_strain_hides_the_tooltip_lines(g):
     set_strain(g, [])
     g.skrolkpl.publish_strain()
     assert g.CONTEXT_VALUES["skrolkpl_strain_ours"] == "" and g.CONTEXT_VALUES["skrolkpl_strain_enemy"] == ""
+
+
+def test_strain_message_bundles_leave_the_faction(g):
+    # in game the message's bundles stayed on the faction bar for the plague's duration
+    first_tick(g)
+    g.RANDOM = g.lua.table_from([60] + [1] * 30)
+    make_plague(g)
+    removed = {c[1] for c in calls(g, "remove_effect_bundle") if c[2] == PESTILENS}
+    assert {"skrolkpl_strain_ours"} <= removed
+
+
+def test_saved_grid_with_dropped_symptoms_is_rebuilt(g):
+    # 2026-10-25 dropped two Nurgle twins from the catalogue; older saves may still place them
+    g.SAVED = g.lua.table_from({"skrolkpl": g.lua.table_from({
+        "grid": lua_list(g, KEYS[:17] + ["skrolkpl_sym_settlement_1"]),
+        "unlocked": g.lua.table_from({START: True})})})
+    for f in g.LOAD_CALLBACKS.values():
+        f({})
+    first_tick(g)
+    assert set(py_list(g.skrolkpl.persistent.grid)) <= set(KEYS)

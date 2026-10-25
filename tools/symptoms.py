@@ -37,6 +37,7 @@ def _nurgle(sid, kind, icon):
 
 SYMPTOMS = [
     # Nurgle's symptoms without a Nurgle-only effect (battle_7 spell, force_5 recruits, settlement_2 corruption)
+    # and without a twin among Skrolk's own (settlement_1 growth, settlement_5 income)
     _nurgle("battle_1", FORCE, "battle_defence.png"),
     _nurgle("battle_2", FORCE, "battle_armour.png"),
     _nurgle("battle_3", FORCE, "battle_ammo.png"),
@@ -48,10 +49,8 @@ SYMPTOMS = [
     _nurgle("force_3", FORCE, "campaign_disaster.png"),
     _nurgle("force_4", FORCE, "campaign_movement.png"),
     _nurgle("force_6", FORCE, "battle_military_spending.png"),
-    _nurgle("settlement_1", REGION, "campaign_growth.png"),
     _nurgle("settlement_3", REGION, "campaign_turns.png"),
     _nurgle("settlement_4", REGION, "campaign_construction.png"),
-    _nurgle("settlement_5", REGION, "campaign_military_spending.png"),
     # Skrolk's vanilla plague, one symptom per component, vanilla values
     Symptom("sk_frenzy", FORCE, SKILLS + "wh_main_unit_passive_frenzy.png",
             ours=(("wh_dlc08_effect_ability_enable_frenzy", F, 1.0), ("wh_main_effect_force_stat_leadership", F, 8.0)),
@@ -74,7 +73,7 @@ SYMPTOMS = [
             enemy=(("wh_main_effect_economy_gdp_mod_all", R, -50.0),),
             names={"ru": ("Мор на рынках", "Лапы"),
                    "en": ("Market Blight", "Paws")}),
-    Symptom("sk_construction", REGION, SKILLS + "campaign_construction.png",
+    Symptom("sk_construction", REGION, SKILLS + "campaign_slaves.png",
             ours=(("wh2_main_effect_building_construction_time_mod_all", R, -33.0),),
             enemy=(("wh2_main_effect_building_construction_time_mod_all", R, 50.0),),
             names={"ru": ("Рабы до последнего вздоха", "Хребет"),
