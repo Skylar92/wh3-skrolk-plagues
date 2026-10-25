@@ -641,7 +641,47 @@ local function bind_strain(id)
 end
 
 -- Note a Skrolk plague's infection; a new plague's first one takes the pending strain.
+-- Probe (log only, once per record): which plague record a Skrolk plague infects with. Can the
+-- cauldron spawn a crafted plague by its record? (spawn_plague_at_settlement takes a record key)
+local probed_records = {}
+local function probe_record(plague, id)
+	local ok, record = pcall(function() return plague:plague_record() end)
+	local key = tostring(ok and record or ("error: " .. tostring(record)))
+	if probed_records[key .. tostring(id)] then return end
+	probed_records[key .. tostring(id)] = true
+	log("probe: plague " .. tostring(id) .. " has record " .. key)
+end
+
+-- Probe (log only): plague functions the game offers beyond the ones vanilla scripts use.
+local function probe_api(faction)
+	local function has(object, name)
+		local ok, value = pcall(function() return object[name] end)
+		return ok and value ~= nil
+	end
+	local plagues = faction:plagues()
+	for _, name in ipairs({ "plague_list", "faction_plague", "plagues" }) do
+		log("probe: faction:plagues():" .. name .. " " .. (has(plagues, name) and "exists" or "missing"))
+	end
+	for _, name in ipairs({ "infect_with_plague", "set_military_force_plague", "try_get_military_force_plague",
+	                        "spawn_plague_at_settlement" }) do
+		log("probe: game_interface." .. name .. " " .. (has(cm.game_interface, name) and "exists" or "missing"))
+	end
+	if has(plagues, "plague_list") then
+		local ok, err = pcall(function()
+			local list = plagues:plague_list()
+			log("probe: plague_list has " .. list:num_items())
+			for i = 0, list:num_items() - 1 do
+				local plague = list:item_at(i)
+				log("probe: plague_list item " .. i .. ": " .. tostring(skrolkpl.plague_id(plague)) .. " record "
+					.. tostring(plague:plague_record()))
+			end
+		end)
+		if not ok then log("probe: plague_list failed: " .. tostring(err)) end
+	end
+end
+
 local function plague_of_infection(context)
+	probe_record(context:plague(), skrolkpl.plague_id(context:plague()))
 	local id = skrolkpl.plague_id(context:plague())
 	if not id then return nil end
 	local ok, creation = pcall(function() return context:is_creation() end)
@@ -785,6 +825,7 @@ local function on_first_tick()
 	if grid_ok then publish_grid() else reshuffle(faction) end
 	refresh_undercities(faction)
 	skrolkpl.publish_strains() -- script values are not saved; publish them again on every load
+	pcall(probe_api, faction)
 	log("ready, turn " .. cm:model():turn_number())
 end
 
