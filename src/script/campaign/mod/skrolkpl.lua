@@ -749,9 +749,12 @@ local function refresh_undercities(faction)
 	for key in pairs(skrolkpl.persistent.undercities) do
 		if not now[key] then cm:remove_effect_bundle_from_region(UNDER_BUNDLE, key) end
 	end
+	local keys = {}
 	for key in pairs(now) do
 		cm:apply_effect_bundle_to_region(UNDER_BUNDLE, key, 0)
+		keys[#keys + 1] = key
 	end
+	log("undercity bonus on " .. #keys .. " regions: " .. table.concat(keys, ", "))
 	skrolkpl.persistent.undercities = now
 end
 
