@@ -59,7 +59,7 @@ def merge_tables(tables):
     return list(merged.values())
 
 
-def build(out_path, variant="release", lang="ru"):
+def build(out_path, variant="release", lang="ru", always_rot=False):
     if variant not in VARIANTS:
         raise ValueError("unknown variant: %s" % variant)
     if lang not in LANGS:
@@ -78,7 +78,8 @@ def build(out_path, variant="release", lang="ru"):
         effects = table("effects_tables")
         positive_good = {r[effects.col("effect")]: r[effects.col("is_positive_value_good")] for r in effects.rows}
         icons = {r[effects.col("effect")]: (r[effects.col("icon")], r[effects.col("icon_negative")]) for r in effects.rows}
-        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM, ROTS, positive_good, icons).encode("utf-8"),
+        scripts = {CORE_SCRIPT: render_core(core, symptom_keys(), START_SYMPTOM, ROTS, positive_good, icons,
+                                               always_rot).encode("utf-8"),
                    CCO_PATH: make_plague_cco(read_pack(GAME_DATA / "ui.pack")[CCO_PATH].decode("utf-8")).encode("utf-8"),
                    TOOLTIP_PATH: make_plague_tooltip(
                        read_pack(GAME_DATA / "ui3.pack")[TOOLTIP_PATH].decode("utf-8")).encode("utf-8")}
@@ -92,9 +93,10 @@ def build(out_path, variant="release", lang="ru"):
 def main(argv, dist=ROOT / "dist"):
     variant = "spike" if "--spike" in argv else "release"
     lang = argv[argv.index("--lang") + 1] if "--lang" in argv else "ru"
+    always_rot = "--always-rot" in argv  # test build: every new plague rots
     dist.mkdir(exist_ok=True)
-    build(dist / PACK_NAME, variant=variant, lang=lang)
-    print("built %s (%s, %s)" % (dist / PACK_NAME, variant, lang))
+    build(dist / PACK_NAME, variant=variant, lang=lang, always_rot=always_rot)
+    print("built %s (%s, %s%s)" % (dist / PACK_NAME, variant, lang, ", always rot" if always_rot else ""))
     if "--install" in argv:
         shutil.copyfile(dist / PACK_NAME, GAME_DATA / PACK_NAME)
         print("installed %s" % (GAME_DATA / PACK_NAME))

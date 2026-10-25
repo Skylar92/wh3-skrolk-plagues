@@ -20,6 +20,7 @@ local SYMPTOM_KEYS = {} --@@SYMPTOM_KEYS@@
 local START_SYMPTOM = "" --@@START_SYMPTOM@@
 -- Filled in by tools/build.py from tools/rots.py: the strain rot catalogue.
 local ROTS = {} --@@ROTS@@
+local ALWAYS_ROT = false --@@ALWAYS_ROT@@ -- test builds (build --always-rot): a new plague always rots
 local ROT_BY_ID = {}
 for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
 local STRAIN_BUNDLES = { ours = "skrolkpl_strain_ours", enemy = "skrolkpl_strain_enemy" }
@@ -195,6 +196,7 @@ end
 -- The rots a new plague picks up: 0-3 (50/30/15/5 %), distinct, drawn by weight.
 function skrolkpl.roll_strain()
 	local r = cm:random_number(100)
+	if ALWAYS_ROT and r <= 50 then r = r + 50 end
 	local count = (r <= 50 and 0) or (r <= 80 and 1) or (r <= 95 and 2) or 3
 	local pool, strain = {}, {}
 	for i, rot in ipairs(ROTS) do pool[i] = rot end

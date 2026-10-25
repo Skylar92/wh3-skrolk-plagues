@@ -402,6 +402,17 @@ def test_rot_count_follows_50_30_15_5(g, roll, count):
     assert len(py_list(g.skrolkpl.roll_strain())) == count
 
 
+@pytest.mark.parametrize("roll", [1, 50, 51, 100])
+def test_test_build_always_rots(roll):
+    # author: a test build where every new plague rots, so the rot shows without restarting
+    lua = LuaRuntime(unpack_returned_tuples=True)
+    lua.execute(MOCK)
+    lua.execute(render_core(TEMPLATE, KEYS, KEYS[0], ROTS, always_rot=True))
+    g = lua.globals()
+    g.RANDOM = lua.table_from([roll] + [1] * 20)
+    assert 1 <= len(py_list(g.skrolkpl.roll_strain())) <= 3
+
+
 def test_rolled_rots_are_distinct(g):
     g.RANDOM = g.lua.table_from([100] + [1] * 30)   # three rots, always the first by weight
     strain = py_list(g.skrolkpl.roll_strain())
