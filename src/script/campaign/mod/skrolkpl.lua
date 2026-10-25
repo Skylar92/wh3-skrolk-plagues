@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------------
 --
---	Skrolk's Plagues ("Чумы Скролка")
+--	Skrolk's Plagues
 --
 --	A human Clan Pestilens gets Nurgle's plague window. The window's 18-slot
 --	symptom grid is filled from our catalogue, 18 symptoms at random, and is
