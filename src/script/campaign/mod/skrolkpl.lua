@@ -378,6 +378,31 @@ local function check_slot_mapping()
 	log("slot mapping check: " .. (bad == 0 and "ok" or (bad .. " mismatches")))
 end
 
+-- After a plague the open symptoms may all be resting: open one more on this turn's grid, placed
+-- so a plague can start from it (two free linked neighbours). The grid itself stays for the turn.
+local function keep_a_plague_possible(faction)
+	local resting = symptoms_in_state(faction, "COOLDOWN")
+	local usable = {}
+	for _, key in ipairs(SYMPTOM_KEYS) do
+		if not resting[key] then usable[key] = true end
+	end
+	local open = skrolkpl.persistent.unlocked
+	local grid = skrolkpl.persistent.grid
+	if skrolkpl.has_plague_path(grid, open, usable) then return end
+	local candidates = {}
+	for _, key in ipairs(grid) do
+		if usable[key] and not open[key] then candidates[#candidates + 1] = key end
+	end
+	for _, key in ipairs(shuffled(candidates)) do
+		local trial = { [key] = true }
+		if skrolkpl.has_plague_path(grid, trial, usable) then
+			open_symptom(faction, key)
+			log("opened " .. key .. ": no plague could start on this turn's grid")
+			return
+		end
+	end
+end
+
 local function on_plague_ritual(faction)
 	charge(faction)
 	-- the engine marks the plague's symptoms as resting after the infection events
@@ -389,6 +414,8 @@ local function on_plague_ritual(faction)
 				log("opened " .. key .. ": used in a plague")
 			end
 		end
+		keep_a_plague_possible(faction)
+		refresh_panel()
 	end, 0.5)
 	refresh_panel() -- switch Infect off at once if the next plague is now unaffordable
 end

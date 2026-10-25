@@ -322,7 +322,9 @@ def test_used_symptoms_become_open(g):
     for k in (START, KEYS[5], KEYS[9]):
         g.COMPONENTS[k]["COOLDOWN"] = True   # the engine marks the plague's symptoms
     make_plague(g)
-    assert {k for k in KEYS if "UNLOCKED" in states(g, k)} == {START, KEYS[5], KEYS[9]}
+    open_keys = {k for k in KEYS if "UNLOCKED" in states(g, k)}
+    assert {START, KEYS[5], KEYS[9]} <= open_keys
+    assert len(open_keys) <= 4  # plus at most one, opened because all three now rest
 
 
 def test_an_extra_symptom_opens_when_every_open_one_rests(g):
@@ -359,3 +361,19 @@ def test_save_from_before_start_node_migrates(g):
         f({})
     first_tick(g)
     assert {k for k in KEYS if "UNLOCKED" in states(g, k)} == {START}
+
+
+def test_second_plague_possible_in_the_same_turn(g):
+    # in game the first plague rested every open symptom, so nothing could start a second one
+    first_tick(g)
+    g.FACTIONS[PESTILENS].treasury = 100000
+    grid = py_list(g.skrolkpl.persistent.grid)
+    start_slot = grid.index(START)
+    used = [START] + [grid[n] for n in py_list(g.skrolkpl.neighbours(start_slot))][:2]
+    for k in used:
+        g.COMPONENTS[k]["COOLDOWN"] = True
+    make_plague(g)
+    assert py_list(g.skrolkpl.persistent.grid) == grid  # the layout stays for the turn
+    open_keys = [k for k in KEYS if "UNLOCKED" in states(g, k)]
+    usable = [k for k in KEYS if "COOLDOWN" not in states(g, k)]
+    assert g.skrolkpl.has_plague_path(g.skrolkpl.persistent.grid, lset(g, open_keys), lset(g, usable))
