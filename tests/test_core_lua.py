@@ -844,3 +844,118 @@ def test_other_factions_undercities_change_nothing(g):
     g.CALLS = g.lua.table_from([])
     g.fire("ForeignSlotManagerCreatedEvent", g.slot_manager_context(EMPIRE))
     assert under_calls(g, "apply_effect_bundle_to_region") == []
+
+
+# --- Skrolk's cauldron --------------------------------------------------------
+
+CAULDRON = "skrolkpl_cauldron_plague"
+
+
+def vanilla_cauldron(g):
+    # the vanilla Under-Empire script's global, called each turn for an undercity with a Great Cauldron
+    g.lua.execute("""
+        function under_empire_plague_cauldron_created(faction, region)
+            CALLS[#CALLS + 1] = { "vanilla_cauldron", faction:name(), region:name() }
+        end""")
+
+
+def cauldron_built(g, faction, region_key):
+    g.under_empire_plague_cauldron_created(g.cm.get_faction(g.cm, faction), g.cm.get_region(g.cm, region_key))
+
+
+def spawned(g):
+    return [(c[2], c[3]) for c in calls(g, "spawn_plague_at_settlement")]
+
+
+def test_human_skrolk_cauldron_spawns_the_great_pox(g):
+    # author 2026-10-25: the Great Cauldron starts a strengthened predefined plague instead of the vanilla one
+    vanilla_cauldron(g)
+    first_tick(g)
+    cauldron_built(g, PESTILENS, "r1")
+    assert spawned(g) == [("r1", CAULDRON)]
+    assert calls(g, "vanilla_cauldron") == []
+    assert [c[1] for c in calls(g, "show_message_event_located")] == [PESTILENS, EMPIRE]  # like vanilla
+
+
+def test_other_cauldrons_stay_vanilla(g):
+    vanilla_cauldron(g)
+    first_tick(g)
+    cauldron_built(g, "wh2_main_skv_clan_moulder", "r1")
+    assert calls(g, "vanilla_cauldron") == [("vanilla_cauldron", "wh2_main_skv_clan_moulder", "r1")]
+    assert spawned(g) == []
+
+
+def test_ai_skrolk_cauldron_stays_vanilla(g):
+    vanilla_cauldron(g)
+    g.FACTIONS[PESTILENS].human = False
+    first_tick(g)
+    cauldron_built(g, PESTILENS, "r1")
+    assert calls(g, "vanilla_cauldron") == [("vanilla_cauldron", PESTILENS, "r1")]
+
+
+def test_infected_city_waits_and_the_message_comes_once(g):
+    vanilla_cauldron(g)
+    first_tick(g)
+    g.REGIONS = g.lua.table_from({"r1": g.lua.table_from({"infected": True})})
+    cauldron_built(g, PESTILENS, "r1")
+    cauldron_built(g, PESTILENS, "r1")   # the vanilla script calls it every turn
+    assert spawned(g) == []
+    assert len(calls(g, "show_message_event_located")) == 2
+
+
+def test_pox_comes_back_every_turn_even_without_the_undercity(g):
+    # author: once the cauldron spilled, only razing the city wipes the plague
+    vanilla_cauldron(g)
+    first_tick(g)
+    cauldron_built(g, PESTILENS, "r1")
+    g.CALLS = g.lua.table_from([])
+    turn_start(g, 2)   # the undercity is gone: the vanilla script no longer calls; the plague ended
+    assert spawned(g) == [("r1", CAULDRON)]
+
+
+def test_razed_city_is_forgotten(g):
+    vanilla_cauldron(g)
+    first_tick(g)
+    cauldron_built(g, PESTILENS, "r1")
+    g.REGIONS = g.lua.table_from({"r1": g.lua.table_from({"abandoned": True})})
+    turn_start(g, 2)
+    g.REGIONS = g.lua.table_from({})   # resettled later
+    g.CALLS = g.lua.table_from([])
+    turn_start(g, 3)
+    assert spawned(g) == []
+
+
+def test_cauldron_cities_survive_save(g):
+    vanilla_cauldron(g)
+    first_tick(g)
+    cauldron_built(g, PESTILENS, "r1")
+    for f in g.SAVE_CALLBACKS.values():
+        f({})
+    g.skrolkpl.persistent.cauldrons = g.lua.table_from({})
+    for f in g.LOAD_CALLBACKS.values():
+        f({})
+    g.CALLS = g.lua.table_from([])
+    turn_start(g, 2)
+    assert spawned(g) == [("r1", CAULDRON)]
+
+
+def test_no_vanilla_cauldron_script_no_crash(g):
+    first_tick(g)
+    turn_start(g, 2)
+    assert spawned(g) == []
+
+
+def test_one_pox_per_city_per_turn(g):
+    # the vanilla call and our turn-start check may both find the city free in one turn
+    vanilla_cauldron(g)
+    first_tick(g)
+    cauldron_built(g, PESTILENS, "r1")
+    turn_start(g, 1)
+    cauldron_built(g, PESTILENS, "r1")
+    assert spawned(g) == [("r1", CAULDRON)]
+
+
+def test_plague_without_a_symptom_list_has_no_id(g):
+    # the cauldron pox and vanilla plagues are not crafted; their component list may not exist
+    plague = g.lua.eval("{ plague_components = function() error('no components') end }")
+    assert g.skrolkpl.plague_id(plague) is None

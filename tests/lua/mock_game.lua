@@ -98,8 +98,27 @@ cm = {
 	apply_custom_effect_bundle_to_region = function(_, bundle, region)
 		rec("apply_custom_region", bundle, region:name())
 	end,
-	get_region = function(_, key) return { name = function() return key end,
-	                                       is_null_interface = function() return false end } end,
+	-- REGIONS[key] = {abandoned = bool, infected = bool}; missing keys are plain, uninfected regions
+	get_region = function(_, key)
+		local data = REGIONS and REGIONS[key] or {}
+		return {
+			name = function() return key end,
+			is_null_interface = function() return false end,
+			is_abandoned = function() return data.abandoned == true end,
+			get_plague_if_infected = function()
+				return { is_null_interface = function() return data.infected ~= true end }
+			end,
+			settlement = function()
+				return { region = function() return cm:get_region(key) end,
+				         logical_position_x = function() return 1 end, logical_position_y = function() return 2 end }
+			end,
+			owning_faction = function() return make_faction(data.owner or "wh_main_emp_empire") end,
+		}
+	end,
+	spawn_plague_at_settlement = function(_, faction, settlement, plague)
+		rec("spawn_plague_at_settlement", faction:name(), settlement:region():name(), plague)
+	end,
+	show_message_event_located = function(_, faction, title, ...) rec("show_message_event_located", faction, title) end,
 	remove_effect_bundle_from_force = function(_, ...) rec("remove_effect_bundle_from_force", ...) end,
 	apply_effect_bundle_to_region = function(_, ...) rec("apply_effect_bundle_to_region", ...) end,
 	remove_effect_bundle_from_region = function(_, ...) rec("remove_effect_bundle_from_region", ...) end,

@@ -47,6 +47,7 @@ local DIRECT_RITUALS = {
 local SLOTS = { "duration", "spread", "immunity" }
 local SAVE_KEY = "skrolkpl"
 local UNDER_BUNDLE = "skrolkpl_undercity_plague" -- more spread, shorter immunity above our undercity
+local CAULDRON_PLAGUE = "skrolkpl_cauldron_plague" -- the Great Cauldron's strengthened plague
 local GRID_TRIES = 20
 
 -- Links between the window's 18 grid slots (slot = CcoPlagueComponentUiDataRecord id, 0-based), read
@@ -83,9 +84,10 @@ skrolkpl = {
 	-- strains: each plague's rot, {[plague id] = {rots = {rot id, ...}, turns = the plague's duration}};
 	-- infected: what Skrolk's plagues hold now, {forces = {[cqi] = target}, regions = {[key] = target}},
 	-- target = {ours = Pestilens' own, plague = plague id or nil}
-	-- undercities: {[region key] = true} that carry the Under-Empire bonus
+	-- undercities: {[region key] = true} that carry the Under-Empire bonus;
+	-- cauldrons: {[region key] = true}, cities our Great Cauldron spilled over: the pox until razed
 	persistent = { grid = nil, unlocked = nil, strains = {}, infected = { forces = {}, regions = {} },
-	               undercities = {} },
+	               undercities = {}, cauldrons = {} },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
 	pending_strain = nil, -- the new plague's strain until its first infection names the plague
 	created_plague = nil, -- a new plague's id when its first infection came before the ritual
@@ -502,7 +504,9 @@ end
 -- A plague of Skrolk's is known by its symptoms, sorted and joined with "+" (mutation slots left out);
 -- the plague tooltip builds the same id from the plague's ingredients. nil for a plague without ours.
 function skrolkpl.plague_id(plague)
-	local keys, list = {}, plague:plague_components()
+	local ok, list = pcall(function() return plague:plague_components() end)
+	if not ok or not list then return nil end
+	local keys = {}
 	for i = 0, list:num_items() - 1 do
 		local key = list:item_at(i):key()
 		if string.sub(key, 1, #SYMPTOM_PREFIX) == SYMPTOM_PREFIX then keys[#keys + 1] = key end
@@ -798,9 +802,69 @@ local function refresh_undercities(faction)
 	skrolkpl.persistent.undercities = now
 end
 
+-- The Great Cauldron's city keeps the pox until it is razed: infect it again whenever it is free, once
+-- a turn at most (the vanilla call and our turn-start check may both find it free).
+local cauldron_spawned = {} -- {[region key] = turn}
+local function infect_cauldron_city(region_key)
+	local region = cm:get_region(region_key)
+	if not region or region:is_null_interface() then return end
+	if region:is_abandoned() then
+		skrolkpl.persistent.cauldrons[region_key] = nil
+		log("cauldron city razed, the pox is gone: " .. region_key)
+		return
+	end
+	if not region:get_plague_if_infected():is_null_interface() then return end -- one plague at a time
+	local turn = cm:model():turn_number()
+	if cauldron_spawned[region_key] == turn then return end
+	cauldron_spawned[region_key] = turn
+	cm:spawn_plague_at_settlement(cm:get_faction(PESTILENS), region:settlement(), CAULDRON_PLAGUE)
+	log("cauldron pox on " .. region_key)
+end
+
+-- Our Great Cauldron is done (the vanilla script calls this every turn while it stands): remember the
+-- city, tell both sides as vanilla does, and infect it.
+local function on_cauldron(region)
+	local key = region:name()
+	if not skrolkpl.persistent.cauldrons[key] then
+		skrolkpl.persistent.cauldrons[key] = true
+		local settlement = region:settlement()
+		local x, y = settlement:logical_position_x(), settlement:logical_position_y()
+		cm:show_message_event_located(PESTILENS,
+			"event_feed_strings_text_wh2_dlc12_event_feed_string_scripted_event_plague_cauldron_title",
+			"regions_onscreen_" .. key,
+			"event_feed_strings_text_wh2_dlc12_event_feed_string_scripted_event_plague_cauldron_description",
+			x, y, true, 125)
+		cm:show_message_event_located(region:owning_faction():name(),
+			"event_feed_strings_text_wh2_dlc12_event_feed_string_scripted_event_plague_cauldron_title",
+			"regions_onscreen_" .. key,
+			"event_feed_strings_text_wh2_dlc12_event_feed_string_scripted_event_plague_cauldron_description_target",
+			x, y, true, 125)
+	end
+	infect_cauldron_city(key)
+end
+
+-- The vanilla Under-Empire script (wh2_dlc12_under_empire.lua) spawns its plague through this global;
+-- the human Pestilens' cauldrons go to on_cauldron, everyone else's stay vanilla.
+local function take_over_cauldrons()
+	local vanilla = under_empire_plague_cauldron_created
+	if type(vanilla) ~= "function" then
+		log("cauldron: the vanilla Under-Empire script is not loaded; cauldrons stay vanilla")
+		return
+	end
+	under_empire_plague_cauldron_created = function(faction, region)
+		if faction:name() == PESTILENS and faction:is_human() then
+			local ok, err = pcall(on_cauldron, region)
+			if not ok then log("cauldron failed: " .. tostring(err)) end
+			return
+		end
+		return vanilla(faction, region)
+	end
+end
+
 local function on_turn_start(faction)
 	reshuffle(faction)
 	refresh_undercities(faction)
+	for key in pairs(skrolkpl.persistent.cauldrons) do infect_cauldron_city(key) end
 	forget_ended_plagues()
 	log("grid reshuffled, turn " .. cm:model():turn_number())
 	refresh_panel()
@@ -810,6 +874,7 @@ local function on_first_tick()
 	local faction = human_pestilens()
 	if not faction then return end
 	cm:override_ui(PLAGUE_BUTTON_OVERRIDE, false)
+	take_over_cauldrons()
 	cm:apply_effect_bundle(FREE_RITUALS_BUNDLE, PESTILENS, 0)
 	if not skrolkpl.persistent.unlocked then -- new campaign, or a save from before the start symptom
 		skrolkpl.persistent.unlocked = { [START_SYMPTOM] = true }
@@ -900,6 +965,7 @@ cm:add_loading_game_callback(function(context)
 	local p = skrolkpl.persistent
 	p.strains = p.strains or {}
 	p.undercities = p.undercities or {}
+	p.cauldrons = p.cauldrons or {}
 	p.infected = p.infected or { forces = {}, regions = {} }
 	-- saves from before per-plague strains: one strain for all, targets saved as just "ours"
 	p.strain, p.strain_turns = nil, nil
