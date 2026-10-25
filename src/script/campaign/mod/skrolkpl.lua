@@ -802,22 +802,6 @@ local function refresh_undercities(faction)
 	skrolkpl.persistent.undercities = now
 end
 
--- Probe (temporary): in game the pox never took. If it did not, try the vanilla Skaven plague on the
--- same city: neither taking means the city is immune; only vanilla taking means our record is wrong.
-local function probe_cauldron(region_key)
-	local function infected() return not cm:get_region(region_key):get_plague_if_infected():is_null_interface() end
-	if infected() then
-		log("probe: cauldron pox took on " .. region_key)
-		return
-	end
-	log("probe: cauldron pox did NOT take on " .. region_key .. "; trying the vanilla Skaven plague")
-	cm:spawn_plague_at_settlement(cm:get_faction(PESTILENS), cm:get_region(region_key):settlement(),
-		"wh2_main_plague_skaven")
-	cm:callback(function()
-		log("probe: vanilla Skaven plague " .. (infected() and "took" or "did NOT take") .. " on " .. region_key)
-	end, 0.5)
-end
-
 -- The Great Cauldron's city keeps the pox until it is razed: infect it again whenever it is free, once
 -- a turn at most (the vanilla call and our turn-start check may both find it free).
 local cauldron_spawned = {} -- {[region key] = turn}
@@ -835,7 +819,6 @@ local function infect_cauldron_city(region_key)
 	cauldron_spawned[region_key] = turn
 	cm:spawn_plague_at_settlement(cm:get_faction(PESTILENS), region:settlement(), CAULDRON_PLAGUE)
 	log("cauldron pox on " .. region_key)
-	if not SKROLKPL_NO_CAULDRON_PROBE then cm:callback(function() probe_cauldron(region_key) end, 0.5) end
 end
 
 -- Our Great Cauldron is done (the vanilla script calls this every turn while it stands): remember the

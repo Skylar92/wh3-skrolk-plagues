@@ -4,8 +4,9 @@ For the human Pestilens the Great Plague Cauldron spawns this plague instead of 
 and the campaign script keeps the city above it infected until the city is razed. A crafted plague
 cannot be spawned by script (crafted plagues share one empty record, wh3_dlc25_nur_base_hidden), so this
 is a plague record of its own: Skrolk's vanilla plague about x1.5, plus weapon strength for us and melee
-defence and public order against everyone else. It spreads by the vanilla Skaven parameters; away from
-the cauldron city it ends like any plague.
+defence and public order against everyone else. It spreads by the vanilla Skaven parameters, but with no
+immunity after it ends: the script must be able to infect the cauldron city again at once. Away from the
+cauldron city it ends like any plague.
 
 spawn_plague_* finds a plague's effects through the faction's plague setup set, as Glottkin's gardens
 do, so the setup joins Pestilens' set (tools/feature.py).
@@ -41,15 +42,11 @@ BUNDLES = {
 
 TEXTS = {
     "ru": {"title": "Великий мор котла",
-           "force": "Эта армия заражена [[img:icon_plague]][[/img]]Великим мором из котла Скролка. Мор может "
-                    "перекинуться на соседние поселения и армии.",
-           "settlement": "Это поселение заражено [[img:icon_plague]][[/img]]Великим мором из котла Скролка. Над "
-                         "котлом мор не уходит, пока город не разрушат."},
+           "desc": "[[img:icon_plague]][[/img]]Великий мор из котла Скролка. Город над котлом он не покидает, "
+                   "пока город не разрушат; на других армиях и поселениях проходит, как обычная чума."},
     "en": {"title": "Great Cauldron Pox",
-           "force": "This force is infected with the [[img:icon_plague]][[/img]]Great Pox from Skrolk's cauldron. "
-                    "It may spread to nearby settlements and armies.",
-           "settlement": "This settlement is infected with the [[img:icon_plague]][[/img]]Great Pox from Skrolk's "
-                         "cauldron. Above the cauldron the pox never leaves until the city is razed."},
+           "desc": "The [[img:icon_plague]][[/img]]Great Pox from Skrolk's cauldron. It never leaves the city above "
+                   "the cauldron until the city is razed; elsewhere it passes like any plague."},
 }
 
 
@@ -60,9 +57,13 @@ def bundle_key(target, side):
 def make_cauldron_tables(table):
     t = table
     plagues, setups, items = t("plagues_tables"), t("plague_setups_tables"), t("faction_plague_setup_set_items_tables")
+    params = t("plague_parameters_tables")
     effect_setups, effects, sets = t("plague_effect_setups_tables"), t("plague_effects_tables"), t("faction_set_effect_bundles_tables")
     bundles, junctions = t("effect_bundles_tables"), t("effect_bundles_to_effects_junctions_tables")
-    out = [table_with(plagues, row(plagues, find(plagues, "name", "wh2_main_plague_skaven"), name=CAULDRON_PLAGUE)),
+    out = [table_with(params, row(params, find(params, "key", "skaven_parameters"), key=CAULDRON_PLAGUE,
+                                  immunity_duration=0)),
+           table_with(plagues, row(plagues, find(plagues, "name", "wh2_main_plague_skaven"), name=CAULDRON_PLAGUE,
+                                   parameters=CAULDRON_PLAGUE)),
            table_with(setups, row(setups, key=CAULDRON_PLAGUE, plague=CAULDRON_PLAGUE, effect=CAULDRON_PLAGUE)),
            table_with(items, row(items, set=PLAGUE_SET, item=CAULDRON_PLAGUE)),
            table_with(effect_setups, row(effect_setups, key=CAULDRON_PLAGUE, force_effects=CAULDRON_PLAGUE + "_force",
@@ -90,5 +91,5 @@ def make_cauldron_loc(lang):
     out = []
     for target, side in BUNDLES:
         out += [("effect_bundles_localised_title_" + bundle_key(target, side), t["title"]),
-                ("effect_bundles_localised_description_" + bundle_key(target, side), t[target])]
+                ("effect_bundles_localised_description_" + bundle_key(target, side), t["desc"])]
     return out

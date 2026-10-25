@@ -28,9 +28,25 @@ def rows(tables, name):
 def test_a_plague_record_the_script_can_spawn(tables):
     # the probe showed crafted plagues share one empty record; the cauldron needs a record of its own
     (plague,) = rows(tables, "plagues_tables")
-    assert plague["name"] == CAULDRON_PLAGUE and plague["parameters"] == "skaven_parameters"
+    assert plague["name"] == CAULDRON_PLAGUE and plague["parameters"] == CAULDRON_PLAGUE
     (setup,) = rows(tables, "plague_setups_tables")
     assert setup == {"key": CAULDRON_PLAGUE, "plague": CAULDRON_PLAGUE, "effect": CAULDRON_PLAGUE}
+
+
+def test_no_immunity_so_the_city_takes_it_again(tables, vanilla):
+    # with the Skaven parameters the city would be immune for 5 turns after the pox ends, and the script
+    # could not infect it again: the pox would vanish for 5 turns. Everything else stays Skaven.
+    (params,) = rows(tables, "plague_parameters_tables")
+    t = vanilla("plague_parameters_tables")
+    skaven = dict(zip([f for f, _ in t.fields], next(r for r in t.rows if r[0] == "skaven_parameters")))
+    assert params == dict(skaven, key=CAULDRON_PLAGUE, immunity_duration=0)
+
+
+def test_one_description_fits_armies_and_cities():
+    # in game the tooltip showed the army text ("This force is infected") for the plague in general
+    for lang in ("ru", "en"):
+        texts = {v for k, v in make_cauldron_loc(lang) if "description" in k}
+        assert len(texts) == 1
 
 
 def test_pestilens_plague_set_knows_it(tables):

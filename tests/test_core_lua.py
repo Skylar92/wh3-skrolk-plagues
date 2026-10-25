@@ -959,13 +959,3 @@ def test_plague_without_a_symptom_list_has_no_id(g):
     # the cauldron pox and vanilla plagues are not crafted; their component list may not exist
     plague = g.lua.eval("{ plague_components = function() error('no components') end }")
     assert g.skrolkpl.plague_id(plague) is None
-
-
-def test_cauldron_probe_tries_the_vanilla_plague_when_the_pox_did_not_take(g):
-    # temporary probe: in game the pox never took; the vanilla plague on the same city tells immunity
-    # (neither takes) from a record problem (only vanilla takes)
-    g.SKROLKPL_NO_CAULDRON_PROBE = None
-    vanilla_cauldron(g)
-    first_tick(g)
-    cauldron_built(g, PESTILENS, "r1")
-    assert spawned(g) == [("r1", CAULDRON), ("r1", "wh2_main_plague_skaven")]
