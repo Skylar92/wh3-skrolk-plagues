@@ -197,19 +197,34 @@ local function make_force(cqi, faction_key)
 	}
 end
 
-function force_infection(cqi, faction_key, creator_key, removed)
+-- A plague as the infection events give it: creator and its components (symptoms and mutations).
+local function make_plague(creator_key, symptoms)
+	local items = {}
+	for i, key in ipairs(symptoms or {}) do
+		items[i] = { key = function() return key end, has_state = function() return false end }
+	end
 	return {
-		plague = function() return { creator_faction = function() return make_faction(creator_key) end } end,
+		creator_faction = function() return make_faction(creator_key) end,
+		plague_components = function()
+			return { num_items = function() return #items end, item_at = function(_, i) return items[i + 1] end }
+		end,
+	}
+end
+
+function force_infection(cqi, faction_key, creator_key, removed, symptoms, creation)
+	return {
+		plague = function() return make_plague(creator_key, symptoms) end,
 		target_force = function() return make_force(cqi, faction_key) end,
 		is_removed = function() return removed == true end,
-		is_creation = function() return false end,
+		is_creation = function() return creation == true end,
 	}
 end
 
 -- The game's RegionInfectionEvent has no region() (in game: "attempt to call method 'region'").
-function region_infection(region_key, owner_key, creator_key)
+function region_infection(region_key, owner_key, creator_key, symptoms, creation)
 	return {
-		plague = function() return { creator_faction = function() return make_faction(creator_key) end } end,
+		plague = function() return make_plague(creator_key, symptoms) end,
+		is_creation = function() return creation == true end,
 		target_region = function() return { name = function() return region_key end,
 		                                    owning_faction = function() return make_faction(owner_key) end } end,
 	}

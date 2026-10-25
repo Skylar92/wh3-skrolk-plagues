@@ -23,6 +23,7 @@ local ROTS = {} --@@ROTS@@
 local ROT_BY_ID = {}
 for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
 local STRAIN_BUNDLES = { ours = "skrolkpl_strain_ours", enemy = "skrolkpl_strain_enemy" }
+local SYMPTOM_PREFIX = "skrolkpl_sym_"
 local FORCE_SCOPE = "force_to_force_own" -- army effects; every other scope is a settlement's
 local STRAIN_LINES = 6 -- rot lines per side in the plague tooltip (3 rots x up to 2 effects)
 local BASE_DURATION = 3 -- plague duration at duration level 0 (Nurgle's slot: 3/4/5/6 turns)
@@ -76,12 +77,14 @@ local function log(msg)
 end
 
 skrolkpl = {
-	-- unlocked: {[symptom key] = true}; strain: rot ids of the current strain;
-	-- strain_turns: the plague's duration, which its rot shares;
-	-- infected: what Skrolk's plagues hold now, {forces = {[cqi] = ours}, regions = {[key] = ours}}
-	persistent = { grid = nil, unlocked = nil, strain = {}, strain_turns = BASE_DURATION,
-	               infected = { forces = {}, regions = {} } },
+	-- unlocked: {[symptom key] = true};
+	-- strains: each plague's rot, {[plague id] = {rots = {rot id, ...}, turns = the plague's duration}};
+	-- infected: what Skrolk's plagues hold now, {forces = {[cqi] = target}, regions = {[key] = target}},
+	-- target = {ours = Pestilens' own, plague = plague id or nil}
+	persistent = { grid = nil, unlocked = nil, strains = {}, infected = { forces = {}, regions = {} } },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
+	pending_strain = nil, -- the new plague's strain until its first infection names the plague
+	created_plague = nil, -- a new plague's id when its first infection came before the ritual
 }
 
 ------------------------------------------------------------------------------
@@ -472,57 +475,62 @@ local function summed_effects(strain, side)
 end
 
 -- One "strain rot" bundle on a target: the strain's summed effects for that side and target kind.
-local function rot_bundle(strain, ours, target)
-	local key = "skrolkpl_strain_" .. target .. "_" .. (ours and "ours" or "enemy")
+local function rot_key(ours, target)
+	return "skrolkpl_strain_" .. target .. "_" .. (ours and "ours" or "enemy")
+end
+
+local function rot_effects(strain, ours, target)
 	local effects = {}
 	for _, e in ipairs(summed_effects(strain, ours and "ours" or "enemy")) do
 		if (e[2] == FORCE_SCOPE) == (target == "force") then effects[#effects + 1] = e end
 	end
-	return key, effects
+	return effects
 end
 
-local function build_bundle(key, effects)
+local function build_bundle(key, effects, turns)
 	local bundle = cm:create_new_custom_effect_bundle(key)
 	for _, e in ipairs(effects) do bundle:add_effect(e[1], e[2], e[3]) end
-	bundle:set_duration(skrolkpl.persistent.strain_turns)
+	bundle:set_duration(turns)
 	return bundle
 end
 
-local function set_force_rot(cqi, ours, strain, on)
-	local key, effects = rot_bundle(strain, ours, "force")
-	if not on then
-		cm:remove_effect_bundle_from_force(key, tonumber(cqi))
-		return
+-- A plague of Skrolk's is known by its symptoms, sorted and joined with "+" (mutation slots left out);
+-- the plague tooltip builds the same id from the plague's ingredients. nil for a plague without ours.
+function skrolkpl.plague_id(plague)
+	local keys, list = {}, plague:plague_components()
+	for i = 0, list:num_items() - 1 do
+		local key = list:item_at(i):key()
+		if string.sub(key, 1, #SYMPTOM_PREFIX) == SYMPTOM_PREFIX then keys[#keys + 1] = key end
 	end
+	if #keys == 0 then return nil end
+	table.sort(keys)
+	return table.concat(keys, "+")
+end
+
+-- Put the rot of the target's plague on it (target = {ours, plague}), or take it off.
+local function set_force_rot(cqi, target, on)
+	local key = rot_key(target.ours, "force")
+	cm:remove_effect_bundle_from_force(key, tonumber(cqi))
+	local entry = on and target.plague and skrolkpl.persistent.strains[target.plague]
+	if not entry then return end
+	local effects = rot_effects(entry.rots, target.ours, "force")
 	if #effects == 0 then return end
 	local force = cm:model():military_force_for_command_queue_index(tonumber(cqi))
 	if force and not force:is_null_interface() then
-		cm:apply_custom_effect_bundle_to_force(build_bundle(key, effects), force)
+		cm:apply_custom_effect_bundle_to_force(build_bundle(key, effects, entry.turns), force)
 	end
 end
 
-local function set_region_rot(region_key, ours, strain, on)
-	local key, effects = rot_bundle(strain, ours, "region")
-	if not on then
-		cm:remove_effect_bundle_from_region(key, region_key)
-		return
-	end
+local function set_region_rot(region_key, target, on)
+	local key = rot_key(target.ours, "region")
+	cm:remove_effect_bundle_from_region(key, region_key)
+	local entry = on and target.plague and skrolkpl.persistent.strains[target.plague]
+	if not entry then return end
+	local effects = rot_effects(entry.rots, target.ours, "region")
 	if #effects == 0 then return end
 	local region = cm:get_region(region_key)
 	if region and not region:is_null_interface() then
-		cm:apply_custom_effect_bundle_to_region(build_bundle(key, effects), region)
-	end
-end
-
--- Swap every infected target from the old strain to the new one.
-local function restrain(old, new)
-	for cqi, ours in pairs(skrolkpl.persistent.infected.forces) do
-		set_force_rot(cqi, ours, old, false)
-		set_force_rot(cqi, ours, new, true)
-	end
-	for key, ours in pairs(skrolkpl.persistent.infected.regions) do
-		set_region_rot(key, ours, old, false)
-		set_region_rot(key, ours, new, true)
+		cm:apply_custom_effect_bundle_to_region(build_bundle(key, effects, entry.turns), region)
 	end
 end
 
@@ -539,27 +547,58 @@ local function effect_text(effect, value, good, icon)
 	return line
 end
 
--- The strain's effects for the plague tooltip: our copy of tooltip_dlc25_active_plague shows line i of
--- a side ("skrolkpl_strain_ours_i" / "_enemy_i") in that side's effect section; empty lines hide.
-function skrolkpl.publish_strain()
+-- Every order of a plague's symptoms joined with "+": the tooltip joins them in the game's order.
+local function id_orders(id)
+	local parts = {}
+	for part in string.gmatch(id, "[^+]+") do parts[#parts + 1] = part end
+	local out = {}
+	local function permute(n)
+		if n <= 1 then
+			out[#out + 1] = table.concat(parts, "+")
+			return
+		end
+		for i = 1, n do
+			parts[i], parts[n] = parts[n], parts[i]
+			permute(n - 1)
+			parts[i], parts[n] = parts[n], parts[i]
+		end
+	end
+	permute(#parts)
+	return out
+end
+
+local function publish_lines(id, lines_of)
+	for _, order in ipairs(id_orders(id)) do
+		for _, side in ipairs({ "ours", "enemy" }) do
+			local lines = lines_of(side)
+			for i = 1, STRAIN_LINES do
+				common.set_context_value("skrolkpl_strain_" .. order .. "_" .. side .. "_" .. i, lines[i] or "")
+			end
+		end
+	end
+end
+
+-- Each plague's rot for the plague tooltip: our copy of tooltip_dlc25_active_plague shows line i of a
+-- side ("skrolkpl_strain_<plague id>_ours_i" / "_enemy_i") in that side's effect section; empty lines
+-- hide.
+function skrolkpl.publish_strains()
 	local t = text()
-	for _, side in ipairs({ "ours", "enemy" }) do
-		-- one line per effect, values summed over the strain's rots (as the event message shows them)
-		local lines = {}
-		for _, e in ipairs(summed_effects(skrolkpl.persistent.strain, side)) do
-			local good = (e[3] > 0) == e[4]
-			lines[#lines + 1] = effect_text(e[1], e[3], good, good and e[5] or e[6]) .. t.rot_mark
-		end
-		for i = 1, STRAIN_LINES do
-			common.set_context_value("skrolkpl_strain_" .. side .. "_" .. i, lines[i] or "")
-		end
+	for id, entry in pairs(skrolkpl.persistent.strains) do
+		publish_lines(id, function(side)
+			-- one line per effect, values summed over the strain's rots (as the event message shows them)
+			local lines = {}
+			for _, e in ipairs(summed_effects(entry.rots, side)) do
+				local good = (e[3] > 0) == e[4]
+				lines[#lines + 1] = effect_text(e[1], e[3], good, good and e[5] or e[6]) .. t.rot_mark
+			end
+			return lines
+		end)
 	end
 end
 
 -- An event message: a plate per side with the strain's summed effects (the enemy plate only when the
 -- enemy gets anything), or "the strain holds".
-function skrolkpl.announce_strain()
-	local strain = skrolkpl.persistent.strain
+function skrolkpl.announce_strain(strain, turns)
 	if #strain == 0 then
 		cm:trigger_incident(PESTILENS, INCIDENT_STABLE, true)
 		return
@@ -568,7 +607,7 @@ function skrolkpl.announce_strain()
 	for _, side in ipairs({ "ours", "enemy" }) do
 		local effects = summed_effects(strain, side)
 		if #effects > 0 then
-			payload:effect_bundle_to_faction(build_bundle(STRAIN_BUNDLES[side], effects))
+			payload:effect_bundle_to_faction(build_bundle(STRAIN_BUNDLES[side], effects, turns))
 		end
 	end
 	local incident = cm:create_incident_builder(INCIDENT_STRAIN)
@@ -580,19 +619,47 @@ function skrolkpl.announce_strain()
 	end, 1)
 end
 
+-- The new plague's strain, rolled on the ritual, goes to the plague of its first infection. The game
+-- may report that infection before or after the ritual: whichever comes second binds them.
+local function bind_strain(id)
+	local p = skrolkpl.persistent
+	p.strains[id] = skrolkpl.pending_strain
+	skrolkpl.pending_strain, skrolkpl.created_plague = nil, nil
+	log("strain of " .. id .. ": " .. (#p.strains[id].rots > 0 and table.concat(p.strains[id].rots, ", ") or "clean"))
+	for cqi, target in pairs(p.infected.forces) do
+		if target.plague == id then set_force_rot(cqi, target, true) end
+	end
+	for key, target in pairs(p.infected.regions) do
+		if target.plague == id then set_region_rot(key, target, true) end
+	end
+	skrolkpl.publish_strains()
+end
+
+-- Note a Skrolk plague's infection; a new plague's first one takes the pending strain.
+local function plague_of_infection(context)
+	local id = skrolkpl.plague_id(context:plague())
+	if not id then return nil end
+	local ok, creation = pcall(function() return context:is_creation() end)
+	creation = ok and creation
+	if skrolkpl.pending_strain and (creation or not skrolkpl.persistent.strains[id]) then
+		return id, true
+	end
+	if creation then skrolkpl.created_plague = id end
+	return id, false
+end
+
 local function on_force_infection(context)
 	local force = context:target_force()
 	local cqi = tostring(force:command_queue_index())
 	local forces = skrolkpl.persistent.infected.forces
-	local strain = skrolkpl.persistent.strain
 	if forces[cqi] ~= nil then -- drop the old rot first: plague ended, replaced, or re-applied
-		set_force_rot(cqi, forces[cqi], strain, false)
+		set_force_rot(cqi, forces[cqi], false)
 		forces[cqi] = nil
 	end
 	if context:plague():creator_faction():name() ~= PESTILENS or context:is_removed() then return end
-	local ours = force:faction():name() == PESTILENS
-	forces[cqi] = ours
-	set_force_rot(cqi, ours, strain, true)
+	local id, new = plague_of_infection(context)
+	forces[cqi] = { ours = force:faction():name() == PESTILENS, plague = id }
+	if new then bind_strain(id) else set_force_rot(cqi, forces[cqi], true) end
 end
 
 -- RegionInfectionEvent has no region() (in game: "attempt to call method 'region'"); try the others.
@@ -611,36 +678,48 @@ local function on_region_infection(context)
 	local region = region_of(context)
 	local key = region:name()
 	local regions = skrolkpl.persistent.infected.regions
-	local strain = skrolkpl.persistent.strain
 	if regions[key] ~= nil then
-		set_region_rot(key, regions[key], strain, false)
+		set_region_rot(key, regions[key], false)
 		regions[key] = nil
 	end
 	if context:plague():creator_faction():name() ~= PESTILENS then return end
-	local ours = region:owning_faction():name() == PESTILENS
-	regions[key] = ours
-	set_region_rot(key, ours, strain, true)
+	local id, new = plague_of_infection(context)
+	regions[key] = { ours = region:owning_faction():name() == PESTILENS, plague = id }
+	if new then bind_strain(id) else set_region_rot(key, regions[key], true) end
 end
 
 local function on_region_plague_state(context)
 	local key = context:region():name()
 	local regions = skrolkpl.persistent.infected.regions
 	if regions[key] ~= nil and not context:is_infected() then
-		set_region_rot(key, regions[key], skrolkpl.persistent.strain, false)
+		set_region_rot(key, regions[key], false)
 		regions[key] = nil
+	end
+end
+
+-- Forget the strains of plagues that hold nothing any more, and empty their tooltip lines.
+local function forget_ended_plagues()
+	local p, alive = skrolkpl.persistent, {}
+	for _, kind in ipairs({ "forces", "regions" }) do
+		for _, target in pairs(p.infected[kind]) do
+			if target.plague then alive[target.plague] = true end
+		end
+	end
+	for id in pairs(p.strains) do
+		if not alive[id] then
+			p.strains[id] = nil
+			publish_lines(id, function() return {} end)
+		end
 	end
 end
 
 local function on_plague_ritual(faction)
 	local levels = skrolkpl.pending_levels or read_levels() or { 0, 0, 0 }
 	charge(faction)
-	skrolkpl.persistent.strain_turns = BASE_DURATION + levels[1]
-	local old = skrolkpl.persistent.strain
-	skrolkpl.persistent.strain = skrolkpl.roll_strain()
-	restrain(old, skrolkpl.persistent.strain)
-	log("strain: " .. (#skrolkpl.persistent.strain > 0 and table.concat(skrolkpl.persistent.strain, ", ") or "clean"))
-	skrolkpl.publish_strain()
-	skrolkpl.announce_strain()
+	local turns = BASE_DURATION + levels[1]
+	skrolkpl.pending_strain = { rots = skrolkpl.roll_strain(), turns = turns }
+	skrolkpl.announce_strain(skrolkpl.pending_strain.rots, turns)
+	if skrolkpl.created_plague then bind_strain(skrolkpl.created_plague) end
 	-- the engine marks the plague's symptoms as resting after the infection events
 	cm:callback(function()
 		local resting = symptoms_in_state(faction, "COOLDOWN")
@@ -658,6 +737,7 @@ end
 
 local function on_turn_start(faction)
 	reshuffle(faction)
+	forget_ended_plagues()
 	log("grid reshuffled, turn " .. cm:model():turn_number())
 	refresh_panel()
 end
@@ -679,7 +759,7 @@ local function on_first_tick()
 		if not known[key] then grid_ok = false end -- a symptom dropped from the catalogue since the save
 	end
 	if grid_ok then publish_grid() else reshuffle(faction) end
-	skrolkpl.publish_strain() -- script values are not saved; publish them again on every load
+	skrolkpl.publish_strains() -- script values are not saved; publish them again on every load
 	log("ready, turn " .. cm:model():turn_number())
 end
 
@@ -741,7 +821,14 @@ end)
 
 cm:add_loading_game_callback(function(context)
 	skrolkpl.persistent = cm:load_named_value(SAVE_KEY, { grid = nil, unlocked = nil }, context)
-	skrolkpl.persistent.strain = skrolkpl.persistent.strain or {}
-	skrolkpl.persistent.strain_turns = skrolkpl.persistent.strain_turns or BASE_DURATION
-	skrolkpl.persistent.infected = skrolkpl.persistent.infected or { forces = {}, regions = {} }
+	local p = skrolkpl.persistent
+	p.strains = p.strains or {}
+	p.infected = p.infected or { forces = {}, regions = {} }
+	-- saves from before per-plague strains: one strain for all, targets saved as just "ours"
+	p.strain, p.strain_turns = nil, nil
+	for _, kind in ipairs({ "forces", "regions" }) do
+		for k, target in pairs(p.infected[kind]) do
+			if type(target) ~= "table" then p.infected[kind][k] = { ours = target } end
+		end
+	end
 end)

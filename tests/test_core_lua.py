@@ -408,8 +408,30 @@ def test_rolled_rots_are_distinct(g):
     assert len(strain) == 3 and len(set(strain)) == 3
 
 
-def set_strain(g, ids):
-    g.skrolkpl.persistent.strain = g.lua.table_from(ids)
+# two plagues of Skrolk's, as the infection events show them: symptoms plus a mutation slot
+PLAGUE_A = ["skrolkpl_sym_k03", "skrolkpl_sym_k01", "wh3_dlc25_nur_mutation_duration_1", "skrolkpl_sym_k02"]
+PLAGUE_B = ["skrolkpl_sym_k04", "skrolkpl_sym_k05", "skrolkpl_sym_k06"]
+ID_A = "skrolkpl_sym_k01+skrolkpl_sym_k02+skrolkpl_sym_k03"
+ID_B = "skrolkpl_sym_k04+skrolkpl_sym_k05+skrolkpl_sym_k06"
+
+
+def set_strain(g, ids, plague=ID_A, turns=3):
+    g.skrolkpl.persistent.strains[plague] = g.lua.table_from(
+        {"rots": g.lua.table_from(ids), "turns": turns})
+
+
+def strain_of(g, plague):
+    entry = g.skrolkpl.persistent.strains[plague]
+    return None if entry is None else py_list(entry.rots)
+
+
+def infect_force(g, cqi, faction, creator=PESTILENS, symptoms=PLAGUE_A, removed=False, creation=False):
+    g.fire("MilitaryForceInfectionEvent",
+           g.force_infection(cqi, faction, creator, removed, lua_list(g, symptoms), creation))
+
+
+def infect_region(g, key, owner, creator=PESTILENS, symptoms=PLAGUE_A, creation=False):
+    g.fire("RegionInfectionEvent", g.region_infection(key, owner, creator, lua_list(g, symptoms), creation))
 
 
 FORCE_OURS, FORCE_ENEMY = "skrolkpl_strain_force_ours", "skrolkpl_strain_force_enemy"
@@ -426,10 +448,21 @@ def applied(g, kind):
     return out
 
 
+def test_plague_id_is_its_symptoms_sorted(g):
+    # a plague is known by its three symptoms; the tooltip rebuilds the same id from them
+    plague = g.force_infection(1, EMPIRE, PESTILENS, False, lua_list(g, PLAGUE_A)).plague()
+    assert g.skrolkpl.plague_id(plague) == ID_A
+
+
+def test_plague_without_our_symptoms_has_no_id(g):
+    plague = g.force_infection(1, EMPIRE, PESTILENS, False, lua_list(g, ["wh2_main_skv_plague_skrolk"])).plague()
+    assert g.skrolkpl.plague_id(plague) is None
+
+
 def test_infected_enemy_army_gets_the_enemy_side(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    infect_force(g, 7, EMPIRE)
     assert applied(g, "force") == [(FORCE_ENEMY, 7, {"wh_main_effect_force_all_campaign_movement_range": -10.0}, 3)]
 
 
@@ -437,7 +470,7 @@ def test_one_rot_bundle_per_target_with_summed_effects(g):
     # author: one "strain rot" bundle on the army, values summed like the message and the tooltip
     first_tick(g)
     set_strain(g, ["horned_blessing", "cowed_and_steeled"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(8, PESTILENS, PESTILENS))
+    infect_force(g, 8, PESTILENS)
     assert applied(g, "force") == [(FORCE_OURS, 8, {"wh_main_effect_force_stat_leadership": 5.0,
                                                     "wh_main_effect_force_stat_melee_defence": 6.0}, 3)]
 
@@ -450,7 +483,7 @@ def test_rot_lasts_as_long_as_the_plague(g):
     g.skrolkpl.pending_levels = g.lua.table_from([2, 0, 0])
     g.RANDOM = g.lua.table_from([60] + [1] * 30)
     make_plague(g)
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(9, EMPIRE, PESTILENS))
+    infect_force(g, 9, EMPIRE, creation=True)
     durations = [a[3] for a in applied(g, "force") if a[1] == 9]
     assert durations and all(d == 5 for d in durations)
     assert g.LAUNCHED.payload.bundle.duration == 5
@@ -459,30 +492,30 @@ def test_rot_lasts_as_long_as_the_plague(g):
 def test_infected_own_army_gets_our_side(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(8, PESTILENS, PESTILENS))
+    infect_force(g, 8, PESTILENS)
     assert applied(g, "force") == [(FORCE_OURS, 8, {"wh_main_effect_force_all_campaign_movement_range": 10.0}, 3)]
 
 
 def test_rot_removed_when_plague_ends(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS, True))
+    infect_force(g, 7, EMPIRE)
+    infect_force(g, 7, EMPIRE, removed=True)
     assert ("remove_effect_bundle_from_force", FORCE_ENEMY, 7) in calls(g)
 
 
 def test_foreign_plague_takes_the_rot_away(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, "wh3_main_nur_poxmakers_of_nurgle"))
+    infect_force(g, 7, EMPIRE)
+    infect_force(g, 7, EMPIRE, creator="wh3_main_nur_poxmakers_of_nurgle", symptoms=[])
     assert ("remove_effect_bundle_from_force", FORCE_ENEMY, 7) in calls(g)
 
 
 def test_settlement_rot_follows_plague_state(g):
     first_tick(g)
     set_strain(g, ["fecundity"])
-    g.fire("RegionInfectionEvent", g.region_infection("r1", EMPIRE, PESTILENS))
+    infect_region(g, "r1", EMPIRE)
     assert applied(g, "region") == [(REGION_ENEMY, "r1", {"wh3_main_effect_province_growth_plague": -15.0}, 3)]
     g.fire("RegionPlagueStateChanged", g.region_plague_state("r1", False))
     assert ("remove_effect_bundle_from_region", REGION_ENEMY, "r1") in calls(g)
@@ -491,25 +524,72 @@ def test_settlement_rot_follows_plague_state(g):
 def test_army_effects_stay_off_settlements(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])   # an army-only rot
-    g.fire("RegionInfectionEvent", g.region_infection("r1", EMPIRE, PESTILENS))
+    infect_region(g, "r1", EMPIRE)
     assert applied(g, "region") == []
 
 
-def test_new_plague_swaps_the_strain_on_everyone_infected(g):
-    first_tick(g)
+def new_plague(g, rolls, symptoms=PLAGUE_B, cqi=8, infection_first=False):
     g.FACTIONS[PESTILENS].treasury = 100000
+    g.FACTIONS[PESTILENS].food = 1000
+    g.RANDOM = g.lua.table_from(rolls)
+    if infection_first:
+        infect_force(g, cqi, EMPIRE, symptoms=symptoms, creation=True)
+        make_plague(g)
+    else:
+        make_plague(g)
+        infect_force(g, cqi, EMPIRE, symptoms=symptoms, creation=True)
+
+
+def test_each_plague_keeps_its_own_rot(g):
+    # author 2026-10-25: a second plague replaced the first plague's rot on its targets; each plague
+    # carries its own strain
+    first_tick(g)
     set_strain(g, ["swift_paws"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    infect_force(g, 7, EMPIRE)
     g.CALLS = g.lua.table_from([])
-    g.RANDOM = g.lua.table_from([60] + [1] * 30)   # one rot: the first one by weight
-    make_plague(g)
-    new = py_list(g.skrolkpl.persistent.strain)
-    assert len(new) == 1
-    assert ("remove_effect_bundle_from_force", FORCE_ENEMY, 7) in calls(g)
-    rot = next(r for r in ROTS if r.id == new[0])
-    expected = {e: v for e, scope, v in rot.enemy if scope == "force_to_force_own"}
-    if expected:
-        assert applied(g, "force") == [(FORCE_ENEMY, 7, expected, 3)]
+    new_plague(g, [81] + [1] * 30)   # two rots for plague B
+    assert strain_of(g, ID_A) == ["swift_paws"]
+    assert len(strain_of(g, ID_B)) == 2
+    assert not [c for c in calls(g) if c[0].startswith("remove_effect_bundle_from_force") and c[2] == 7]
+    assert [a[1] for a in applied(g, "force")] == [8]
+
+
+def test_rot_found_when_the_infection_comes_before_the_ritual(g):
+    # the game may report the new plague's first infection before the ritual event
+    first_tick(g)
+    new_plague(g, [81] + [1] * 30, infection_first=True)
+    assert len(strain_of(g, ID_B)) == 2
+    assert [a[1] for a in applied(g, "force")] == [8]
+
+
+def test_spread_keeps_the_plague_rot(g):
+    first_tick(g)
+    new_plague(g, [81] + [1] * 30)
+    rots = strain_of(g, ID_B)
+    infect_force(g, 11, EMPIRE, symptoms=PLAGUE_B)   # spread, not a new plague
+    assert strain_of(g, ID_B) == rots
+    assert [a[1] for a in applied(g, "force")] == [8, 11]
+
+
+def test_same_symptoms_again_give_the_plague_a_new_rot(g):
+    # the same three symptoms after their rest: one id, so the newest strain holds on all its targets
+    first_tick(g)
+    set_strain(g, ["swift_paws"], plague=ID_B)
+    infect_force(g, 7, EMPIRE, symptoms=PLAGUE_B)
+    g.CALLS = g.lua.table_from([])
+    new_plague(g, [81] + [1] * 30)
+    assert strain_of(g, ID_B) != ["swift_paws"]
+    assert sorted(a[1] for a in applied(g, "force")) == [7, 8]
+
+
+def test_plague_with_no_targets_left_is_forgotten(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws"])
+    infect_force(g, 7, EMPIRE)
+    infect_force(g, 7, EMPIRE, removed=True)
+    turn_start(g, 2)
+    assert strain_of(g, ID_A) is None
+    assert g.CONTEXT_VALUES["skrolkpl_strain_" + ID_A + "_enemy_1"] == ""
 
 
 def plates(g):
@@ -520,8 +600,7 @@ def test_strain_message_shows_us_and_the_enemy_in_one_event(g):
     # in game a reverse strain showed our attack -5 but not the enemy's replenishment +10%:
     # one event, a plate for each side, values summed
     first_tick(g)
-    g.skrolkpl.persistent.strain = g.lua.table_from(["feverish_foes"])
-    g.skrolkpl.announce_strain()
+    g.skrolkpl.announce_strain(g.lua.table_from(["feverish_foes"]), 3)
     assert ("launch_custom_incident", "skrolkpl_incident_strain_changed", PESTILENS) in calls(g)
     assert plates(g) == {
         "skrolkpl_strain_ours": {"wh_main_effect_force_stat_melee_attack": -5.0},
@@ -531,8 +610,7 @@ def test_strain_message_shows_us_and_the_enemy_in_one_event(g):
 
 def test_strain_message_sums_and_skips_an_empty_enemy_plate(g):
     first_tick(g)
-    g.skrolkpl.persistent.strain = g.lua.table_from(["burrow_panic", "the_shakes"])  # rot only: nothing for them
-    g.skrolkpl.announce_strain()
+    g.skrolkpl.announce_strain(g.lua.table_from(["burrow_panic", "the_shakes"]), 3)  # rot only: nothing for them
     assert plates(g) == {"skrolkpl_strain_ours": {"wh_main_effect_force_stat_leadership": -6.0,
                                                   "wh_main_effect_force_stat_melee_defence": -5.0}}
 
@@ -547,39 +625,73 @@ def test_clean_strain_message(g):
 def test_strain_and_infected_survive_save(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
-    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    infect_force(g, 7, EMPIRE)
     for f in g.SAVE_CALLBACKS.values():
         f({})
-    g.skrolkpl.persistent.strain = g.lua.table_from([])
+    g.skrolkpl.persistent.strains = g.lua.table_from({})
     for f in g.LOAD_CALLBACKS.values():
         f({})
-    assert py_list(g.skrolkpl.persistent.strain) == ["swift_paws"]
-    assert g.skrolkpl.persistent.infected.forces["7"] is not None
+    assert strain_of(g, ID_A) == ["swift_paws"]
+    assert g.skrolkpl.persistent.infected.forces["7"].plague == ID_A
+
+
+def test_old_save_with_one_strain_for_all_loads(g):
+    # saves from before per-plague strains: strain = rot ids, infected = {[cqi] = ours}
+    g.SAVED = g.lua.table_from({"skrolkpl": g.lua.table_from({
+        "grid": lua_list(g, KEYS[:18]), "unlocked": g.lua.table_from({START: True}),
+        "strain": lua_list(g, ["swift_paws"]), "strain_turns": 3,
+        "infected": g.lua.table_from({"forces": g.lua.table_from({"7": False}),
+                                      "regions": g.lua.table_from({})})})})
+    for f in g.LOAD_CALLBACKS.values():
+        f({})
+    first_tick(g)
+    infect_force(g, 7, EMPIRE, removed=True)
+    assert ("remove_effect_bundle_from_force", FORCE_ENEMY, 7) in calls(g)
+
+
+def tooltip_lines(g, plague, side):
+    return [g.CONTEXT_VALUES["skrolkpl_strain_%s_%s_%d" % (plague, side, i)] for i in range(1, 7)]
 
 
 def test_strain_text_published_for_the_plague_tooltip(g):
-    # the tooltip copy shows these script values on Skrolk's infections
+    # the tooltip copy shows these script values on infections of that plague
     g.LOCALISED = g.lua.table_from({
         "effects_description_wh_main_effect_force_stat_armour": "Armour: %+n",
         "effects_description_wh_main_effect_force_stat_leadership": "Leadership: %+n",
     })
     first_tick(g)
     set_strain(g, ["thick_hide", "burrow_panic"])
-    g.skrolkpl.publish_strain()
-    ours = [g.CONTEXT_VALUES["skrolkpl_strain_ours_%d" % i] for i in range(1, 7)]
-    enemy = [g.CONTEXT_VALUES["skrolkpl_strain_enemy_%d" % i] for i in range(1, 7)]
+    g.skrolkpl.publish_strains()
+    ours, enemy = tooltip_lines(g, ID_A, "ours"), tooltip_lines(g, ID_A, "enemy")
     assert "[[col:green]]Armour: +10" in ours[0] and "[[col:red]]Leadership: -6" in ours[1]
     assert ours[0].startswith("[[img:")  # the effect's own icon, like the plague's effect lines
     assert ours[2:] == [""] * 4
     assert "[[col:red]]Armour: -10" in enemy[0] and enemy[1:] == [""] * 5
 
 
+def test_tooltip_lines_for_any_symptom_order(g):
+    # the tooltip joins the plague's symptoms in the order the game lists them, which we do not know
+    import itertools
+    first_tick(g)
+    set_strain(g, ["thick_hide"])
+    g.skrolkpl.publish_strains()
+    for order in itertools.permutations(ID_A.split("+")):
+        assert tooltip_lines(g, "+".join(order), "ours")[0] != ""
+
+
+def test_two_plagues_two_sets_of_tooltip_lines(g):
+    first_tick(g)
+    set_strain(g, ["thick_hide"])
+    set_strain(g, ["swift_paws"], plague=ID_B)
+    g.skrolkpl.publish_strains()
+    assert tooltip_lines(g, ID_A, "ours")[0] != tooltip_lines(g, ID_B, "ours")[0]
+
+
 def test_clean_strain_hides_the_tooltip_lines(g):
     first_tick(g)
     set_strain(g, [])
-    g.skrolkpl.publish_strain()
-    assert all(g.CONTEXT_VALUES["skrolkpl_strain_%s_%d" % (side, i)] == ""
-               for side in ("ours", "enemy") for i in range(1, 7))
+    g.skrolkpl.publish_strains()
+    assert all(l == "" for side in ("ours", "enemy") for l in tooltip_lines(g, ID_A, side))
 
 
 def test_strain_message_bundles_leave_the_faction(g):
@@ -633,9 +745,8 @@ def test_strain_lines_sum_the_same_effect(g):
     })
     first_tick(g)
     set_strain(g, ["horned_blessing", "cowed_and_steeled"])
-    g.skrolkpl.publish_strain()
-    ours = [g.CONTEXT_VALUES["skrolkpl_strain_ours_%d" % i] for i in range(1, 7)]
-    enemy = [g.CONTEXT_VALUES["skrolkpl_strain_enemy_%d" % i] for i in range(1, 7)]
+    g.skrolkpl.publish_strains()
+    ours, enemy = tooltip_lines(g, ID_A, "ours"), tooltip_lines(g, ID_A, "enemy")
     assert [l for l in ours if l] == [l for l in ours[:2]] and ours[2] == ""
     assert "[[col:green]]Leadership: +5[[/col]]" in ours[0] and "[[col:green]]Defence: +6[[/col]]" in ours[1]
     assert "[[col:red]]Leadership: -10[[/col]]" in enemy[0] and "[[col:red]]Defence: -2[[/col]]" in enemy[1]
@@ -645,6 +756,5 @@ def test_strain_lines_sum_the_same_effect(g):
 def test_strain_effects_that_cancel_out_leave_no_line(g):
     first_tick(g)
     set_strain(g, ["swift_paws", "sluggish"])   # movement +10 and -10 for us
-    g.skrolkpl.publish_strain()
-    ours = [g.CONTEXT_VALUES["skrolkpl_strain_ours_%d" % i] for i in range(1, 7)]
-    assert ours == [""] * 6
+    g.skrolkpl.publish_strains()
+    assert tooltip_lines(g, ID_A, "ours") == [""] * 6

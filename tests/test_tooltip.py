@@ -4,7 +4,7 @@ import pytest
 
 from tools.packfile import read_pack
 from tools.paths import GAME_DATA
-from tools.tooltip import STRAIN_LINES, TOOLTIP_PATH, make_plague_tooltip
+from tools.tooltip import PLAGUE_ID, STRAIN_LINES, TOOLTIP_PATH, make_plague_tooltip
 
 pytestmark = pytest.mark.game
 
@@ -42,9 +42,29 @@ def test_rot_lines_pick_the_side_by_faction_set(ours):
                for c in comp.iter("callback_with_context")}
         ctx, label = cbs["ContextTextLabel"]
         assert ctx == "CcoPlagueEffectList"
-        assert 'CcoFactionSetRecord("skrolkpl_positive")' in label and 'skrolkpl_strain_ours_%d' % n in label
-        assert 'CcoFactionSetRecord("skrolkpl_negative")' in label and 'skrolkpl_strain_enemy_%d' % n in label
+        assert 'CcoFactionSetRecord("skrolkpl_positive")' in label and '"_ours_%d"' % n in label
+        assert 'CcoFactionSetRecord("skrolkpl_negative")' in label and '"_enemy_%d"' % n in label
         assert cbs["ContextVisibilitySetter"][0] == "CcoPlagueEffectList"
+
+
+def test_rot_lines_are_the_plague_own(ours):
+    # author 2026-10-25: each plague has its own rot; a line reads the script value named by the plague's
+    # id (its symptoms joined with "+", as skrolkpl.plague_id builds it)
+    assert 'Filter(Key.Contains("skrolkpl_sym_")).JoinString(Key, "+")' in PLAGUE_ID
+    root = ET.fromstring(ours)
+    for line in STRAIN_LINES:
+        comp = root.find("components/" + line)
+        for c in comp.iter("callback_with_context"):
+            assert c.get("context_function_id").startswith("(id = %s) =>" % PLAGUE_ID)
+            assert '"skrolkpl_strain_" + id + "_' in c.get("context_function_id")
+
+
+def test_effect_list_stores_the_plague_for_the_rot_lines(ours):
+    root = ET.fromstring(ours)
+    comp = root.find("components/effect_type_list")
+    stores = [c.get("context_object_id") for c in comp.iter("callback_with_context")
+              if c.get("callback_id") == "ContextObjectStore"]
+    assert stores == ["CcoCampaignPlagueComposition"]
 
 
 def test_guids_unique(ours):
