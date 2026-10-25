@@ -1,8 +1,8 @@
 import pytest
 
 from conftest import vanilla_table
-from tools.cauldron import (CAULDRON_PLAGUE, PESTILENS_PLAGUE_SET, make_cauldron_loc, make_cauldron_tables)
-from tools.keys import NEGATIVE_SET, POSITIVE_SET
+from tools.cauldron import CAULDRON_PLAGUE, make_cauldron_loc, make_cauldron_tables
+from tools.keys import NEGATIVE_SET, PLAGUE_SET, POSITIVE_SET
 
 pytestmark = pytest.mark.game
 
@@ -35,9 +35,8 @@ def test_a_plague_record_the_script_can_spawn(tables):
 
 def test_pestilens_plague_set_knows_it(tables):
     # spawn_plague_* finds a plague's effects through the faction's plague setup set (as Glottkin's
-    # gardens do); the set's default (the vanilla Skaven plague) stays
-    assert rows(tables, "faction_plague_setup_set_items_tables") == [
-        {"set": PESTILENS_PLAGUE_SET, "item": CAULDRON_PLAGUE}]
+    # gardens do): the pox joins our set
+    assert rows(tables, "faction_plague_setup_set_items_tables") == [{"set": PLAGUE_SET, "item": CAULDRON_PLAGUE}]
     assert "faction_plague_setup_sets_tables" not in tables
 
 

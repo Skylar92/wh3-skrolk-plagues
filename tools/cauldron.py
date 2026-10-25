@@ -8,13 +8,12 @@ defence and public order against everyone else. It spreads by the vanilla Skaven
 the cauldron city it ends like any plague.
 
 spawn_plague_* finds a plague's effects through the faction's plague setup set, as Glottkin's gardens
-do, so the setup joins Pestilens' set (whose default, the vanilla Skaven plague, stays).
+do, so the setup joins Pestilens' set (tools/feature.py).
 """
-from tools.keys import NEGATIVE_SET, POSITIVE_SET
+from tools.keys import NEGATIVE_SET, PLAGUE_SET, POSITIVE_SET
 from tools.rows import find, row, table_with
 
 CAULDRON_PLAGUE = "skrolkpl_cauldron_plague"
-PESTILENS_PLAGUE_SET = "wh2_dlc14_feature_skaven_skrolk"
 
 F, R = "force_to_force_own", "region_to_region_own"
 P, RP = "province_to_province_own_unseen", "region_to_province_own_unseen"
@@ -65,7 +64,7 @@ def make_cauldron_tables(table):
     bundles, junctions = t("effect_bundles_tables"), t("effect_bundles_to_effects_junctions_tables")
     out = [table_with(plagues, row(plagues, find(plagues, "name", "wh2_main_plague_skaven"), name=CAULDRON_PLAGUE)),
            table_with(setups, row(setups, key=CAULDRON_PLAGUE, plague=CAULDRON_PLAGUE, effect=CAULDRON_PLAGUE)),
-           table_with(items, row(items, set=PESTILENS_PLAGUE_SET, item=CAULDRON_PLAGUE)),
+           table_with(items, row(items, set=PLAGUE_SET, item=CAULDRON_PLAGUE)),
            table_with(effect_setups, row(effect_setups, key=CAULDRON_PLAGUE, force_effects=CAULDRON_PLAGUE + "_force",
                                          region_effects=CAULDRON_PLAGUE + "_settlement",
                                          garrison_effects=CAULDRON_PLAGUE + "_force"))]
