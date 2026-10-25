@@ -194,6 +194,12 @@ function ritual_context(ritual_key, faction_key)
 	}
 end
 
+-- ForeignSlotManagerCreatedEvent / ...RemovedEvent: the undercity's faction
+function slot_manager_context(faction_key)
+	return { requesting_faction = function() return make_faction(faction_key) end,
+	         owner = function() return make_faction(faction_key) end }
+end
+
 function faction_context(faction_key)
 	return { faction = function() return make_faction(faction_key) end }
 end

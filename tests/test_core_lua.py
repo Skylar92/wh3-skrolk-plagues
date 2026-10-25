@@ -817,3 +817,30 @@ def test_no_undercity_bonus_for_ai_pestilens(g):
     first_tick(g)
     turn_start(g, 2)
     assert under_calls(g, "apply_effect_bundle_to_region") == []
+
+
+def test_new_undercity_gets_the_bonus_at_once(g):
+    # in game an undercity dug during the turn got nothing until the next turn
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1"])
+    first_tick(g)
+    g.CALLS = g.lua.table_from([])
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1", "r2"])
+    g.fire("ForeignSlotManagerCreatedEvent", g.slot_manager_context(PESTILENS))
+    assert "r2" in under_calls(g, "apply_effect_bundle_to_region")
+
+
+def test_lost_undercity_loses_the_bonus_at_once(g):
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1", "r2"])
+    first_tick(g)
+    g.CALLS = g.lua.table_from([])
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r2"])
+    g.fire("ForeignSlotManagerRemovedEvent", g.slot_manager_context(PESTILENS))
+    assert under_calls(g, "remove_effect_bundle_from_region") == ["r1"]
+
+
+def test_other_factions_undercities_change_nothing(g):
+    g.FACTIONS[PESTILENS].undercities = lua_list(g, ["r1"])
+    first_tick(g)
+    g.CALLS = g.lua.table_from([])
+    g.fire("ForeignSlotManagerCreatedEvent", g.slot_manager_context(EMPIRE))
+    assert under_calls(g, "apply_effect_bundle_to_region") == []

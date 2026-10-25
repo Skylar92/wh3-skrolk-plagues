@@ -831,6 +831,16 @@ listen("region_plague_state", "RegionPlagueStateChanged",
 	function() return human_pestilens() ~= nil end,
 	on_region_plague_state)
 
+-- an undercity dug or lost during the turn changes the bonus at once (the slot list may update after
+-- the event, hence the short wait)
+listen("undercity_created", "ForeignSlotManagerCreatedEvent",
+	function(context) return context:requesting_faction():name() == PESTILENS and human_pestilens() ~= nil end,
+	function() cm:callback(function() refresh_undercities(human_pestilens()) end, 0.1) end)
+
+listen("undercity_removed", "ForeignSlotManagerRemovedEvent",
+	function(context) return context:owner():name() == PESTILENS and human_pestilens() ~= nil end,
+	function() cm:callback(function() refresh_undercities(human_pestilens()) end, 0.1) end)
+
 listen("turn_start", "FactionTurnStart",
 	function(context) return context:faction():name() == PESTILENS and context:faction():is_human() end,
 	function(context) on_turn_start(context:faction()) end)
