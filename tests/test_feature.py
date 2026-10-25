@@ -2,8 +2,8 @@ import pytest
 
 from conftest import vanilla_table
 from tools.feature import FREE_RITUALS_BUNDLE, MUTATIONS, make_feature_loc, make_feature_tables
-from tools.keys import (COMPONENT_SET, FEATURE, FOOD_FACTOR, NEGATIVE_SET, PESTILENS, PLAGUE_SET, POSITIVE_SET,
-                        SYMPTOM_COST)
+from tools.keys import (CAULDRON_PLAGUE, COMPONENT_SET, FEATURE, FOOD_FACTOR, NEGATIVE_SET, PESTILENS, PLAGUE_SET,
+                        POSITIVE_SET, SYMPTOM_COST)
 
 pytestmark = pytest.mark.game
 
@@ -31,10 +31,11 @@ def test_plague_window_is_shown(tables):
 def test_pestilens_plague_set_keeps_the_skaven_plague(tables):
     # in game neither the cauldron pox nor the vanilla Skaven plague could be spawned for Pestilens while
     # the group gave it Nurgle's set: the engine took that set, which has neither. Our own set holds the
-    # crafted plagues' base, the vanilla Skaven plague (the default, for plague priests) and the pox.
+    # crafted plagues' base, the vanilla Skaven plague (the AI's vanilla cauldron) and the pox.
+    # author 2026-10-25: plague priests spread the cauldron pox, the AI's too: it is the set's default.
     assert rows(tables, "campaign_group_faction_plague_setup_sets_tables") == [
         {"campaign_group": FEATURE, "set": PLAGUE_SET}]
-    assert rows(tables, "faction_plague_setup_sets_tables") == [{"key": PLAGUE_SET, "default": "wh2_main_plague_skaven"}]
+    assert rows(tables, "faction_plague_setup_sets_tables") == [{"key": PLAGUE_SET, "default": CAULDRON_PLAGUE}]
     assert {r["item"] for r in rows(tables, "faction_plague_setup_set_items_tables")} == {
         "wh3_dlc25_nur_base_hidden", "wh2_main_plague_skaven"}
 

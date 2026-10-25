@@ -7,6 +7,7 @@ POSITIVE_SET = "skrolkpl_positive"            # faction set taking a plague's po
 NEGATIVE_SET = "skrolkpl_negative"            # everyone else
 # Pestilens' faction plague setup set: the plagues the engine may start for it
 PLAGUE_SET = "skrolkpl_plagues"
+CAULDRON_PLAGUE = "skrolkpl_cauldron_plague"  # the Great Cauldron's pox; also what plague priests spread
 SYMPTOM_COST = "skrolkpl_symptom"             # resource cost of one symptom (zero: the script charges)
 # skaven_food spending factor; also the junction's unique_id, as in vanilla's Throt flesh lab, which
 # passes this key to cm:faction_add_pooled_resource

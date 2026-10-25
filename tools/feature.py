@@ -9,10 +9,11 @@ Found in the spike (plan Task 2, runs 1-6):
 - plague effects pick positive/negative by faction set, so we bring our own sets;
 - the engine takes the group's faction plague setup set for Pestilens: our own, holding the crafted
   plagues' base and the vanilla Skaven plague (with Nurgle's set the Skaven plague could not start);
+  its default, which plague priests spread, is the cauldron pox (tools/cauldron.py adds the pox);
 - the engine charges nothing for components; the script charges food and gold instead.
 """
-from tools.keys import (COMPONENT_SET, FEATURE, FOOD_FACTOR, NEGATIVE_SET, PESTILENS, PLAGUE_SET, POSITIVE_SET,
-                        SYMPTOM_COST)
+from tools.keys import (CAULDRON_PLAGUE, COMPONENT_SET, FEATURE, FOOD_FACTOR, NEGATIVE_SET, PESTILENS, PLAGUE_SET,
+                        POSITIVE_SET, SYMPTOM_COST)
 from tools.rows import find, row, table_with
 
 FREE_RITUALS_BUNDLE = "skrolkpl_free_plague_rituals"
@@ -23,7 +24,7 @@ DIRECT_RITUALS = ("wh3_main_ritual_nur_plague_target_army", "wh3_main_ritual_nur
 MUTATIONS = tuple("wh3_dlc25_nur_mutation_%s_%d" % (slot, level)
                   for slot in ("duration", "spread", "immunity") for level in range(4))
 CRAFTED_BASE = "wh3_dlc25_nur_base_hidden"  # the record every crafted plague infects with
-SKAVEN_PLAGUE = "wh2_main_plague_skaven"     # plague priests and the vanilla cauldron
+SKAVEN_PLAGUE = "wh2_main_plague_skaven"     # the vanilla cauldron (the AI's)
 SET_ITEM_ID_BASE = 2100600000  # faction_set_items ids; vanilla's are spread over the whole I32 range
 
 TEXTS = {
@@ -58,7 +59,7 @@ def make_feature_tables(table):
     out += [table_with(comp_sets, row(comp_sets, campaign_group=FEATURE, set=COMPONENT_SET)),
             table_with(setup_sets, row(setup_sets, key=COMPONENT_SET)),
             table_with(faction_plagues, row(faction_plagues, campaign_group=FEATURE, set=PLAGUE_SET)),
-            table_with(plague_sets, row(plague_sets, key=PLAGUE_SET, default=SKAVEN_PLAGUE)),
+            table_with(plague_sets, row(plague_sets, key=PLAGUE_SET, default=CAULDRON_PLAGUE)),
             table_with(plague_items, *[row(plague_items, set=PLAGUE_SET, item=item) for item in (CRAFTED_BASE, SKAVEN_PLAGUE)]),
             table_with(setups, *[row(setups, find(setups, "component", m), set=COMPONENT_SET) for m in MUTATIONS])]
 

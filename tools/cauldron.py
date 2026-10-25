@@ -11,10 +11,9 @@ cauldron city it ends like any plague.
 spawn_plague_* finds a plague's effects through the faction's plague setup set, as Glottkin's gardens
 do, so the setup joins Pestilens' set (tools/feature.py).
 """
-from tools.keys import NEGATIVE_SET, PLAGUE_SET, POSITIVE_SET
+from tools.keys import CAULDRON_PLAGUE, NEGATIVE_SET, PLAGUE_SET, POSITIVE_SET
 from tools.rows import find, row, table_with
 
-CAULDRON_PLAGUE = "skrolkpl_cauldron_plague"
 
 F, R = "force_to_force_own", "region_to_region_own"
 P, RP = "province_to_province_own_unseen", "region_to_province_own_unseen"
