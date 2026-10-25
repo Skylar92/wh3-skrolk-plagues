@@ -16,9 +16,10 @@ def _lua_value(v):
 def lua_rots(rots, positive_good=None, icons=None):
     """The rot catalogue as a Lua list: id, kind, weight, bundle keys per side/target, effects per side.
 
-    Each shown effect carries whether it is good for the side it lands on, from effects_tables'
-    is_positive_value_good (`positive_good`: {effect: bool}; missing -> bigger is better), and its icon
-    path (`icons`: {effect: (icon, icon_negative)}, under ui/campaign ui/effect_bundles/).
+    Each shown effect is {effect, scope, value, bigger_is_better, icon, icon_negative}: effects_tables'
+    is_positive_value_good (`positive_good`: {effect: bool}; missing -> True) and icon paths (`icons`:
+    {effect: (icon, icon_negative)}, under ui/campaign ui/effect_bundles/). The script sums a strain's
+    effects and picks colour and icon from the sum.
     """
     from tools.rots import rot_bundles
     positive_good = positive_good or {}
@@ -29,12 +30,13 @@ def lua_rots(rots, positive_good=None, icons=None):
         def effects(es):
             out = []
             for effect, scope, value in es:
-                good = (value > 0) == positive_good.get(effect, True)
+                bigger_better = positive_good.get(effect, True)
                 icon, icon_negative = icons.get(effect, (None, None))
-                icon = icon if good else (icon_negative or icon)
                 path = "ui/campaign ui/effect_bundles/" + icon if icon else None
-                out.append("{ %s, %s, %s, %s, %s }" % (_lua_value(effect), _lua_value(scope), _lua_value(value),
-                                                       "true" if good else "false", _lua_value(path)))
+                path_negative = "ui/campaign ui/effect_bundles/" + icon_negative if icon_negative else path
+                out.append("{ %s, %s, %s, %s, %s, %s }" % (
+                    _lua_value(effect), _lua_value(scope), _lua_value(value),
+                    "true" if bigger_better else "false", _lua_value(path), _lua_value(path_negative)))
             return ", ".join(out)
         items.append(
             '{ id = "%s", kind = "%s", weight = %d, ours_force = %s, ours_region = %s, enemy_force = %s, '

@@ -573,3 +573,29 @@ def test_strains_are_sometimes_all_bad_sometimes_all_good_sometimes_mixed(g):
     assert 4500 < outcome["clean"] < 5500                     # 50 %
     # one rot: half gifts; two or three: mostly mixed, sometimes one-sided
     assert outcome["all_bad"] > 1500 and outcome["all_good"] > 1500 and outcome["mixed"] > 600, outcome
+
+
+def test_strain_lines_sum_the_same_effect(g):
+    # in game: Blessing (leadership +10, defence +6 / enemy -10, -6) and Cowed and Steeled (our leadership
+    # -5 / enemy defence +4) showed "-5" and "+10" lines; the message summed them to +5. Sum in the tooltip.
+    g.LOCALISED = g.lua.table_from({
+        "effects_description_wh_main_effect_force_stat_leadership": "Leadership: %+n",
+        "effects_description_wh_main_effect_force_stat_melee_defence": "Defence: %+n",
+    })
+    first_tick(g)
+    set_strain(g, ["horned_blessing", "cowed_and_steeled"])
+    g.skrolkpl.publish_strain()
+    ours = [g.CONTEXT_VALUES["skrolkpl_strain_ours_%d" % i] for i in range(1, 7)]
+    enemy = [g.CONTEXT_VALUES["skrolkpl_strain_enemy_%d" % i] for i in range(1, 7)]
+    assert [l for l in ours if l] == [l for l in ours[:2]] and ours[2] == ""
+    assert "[[col:green]]Leadership: +5[[/col]]" in ours[0] and "[[col:green]]Defence: +6[[/col]]" in ours[1]
+    assert "[[col:red]]Leadership: -10[[/col]]" in enemy[0] and "[[col:red]]Defence: -2[[/col]]" in enemy[1]
+    assert enemy[2] == ""
+
+
+def test_strain_effects_that_cancel_out_leave_no_line(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws", "sluggish"])   # movement +10 and -10 for us
+    g.skrolkpl.publish_strain()
+    ours = [g.CONTEXT_VALUES["skrolkpl_strain_ours_%d" % i] for i in range(1, 7)]
+    assert ours == [""] * 6

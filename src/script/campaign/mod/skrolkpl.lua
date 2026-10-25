@@ -480,7 +480,7 @@ local function restrain(old, new)
 	end
 end
 
--- "Armour: +10" in green or red, from the game's own effect text.
+-- "Armour: +10" in green or red (good for the side or not), from the game's own effect text.
 local function effect_text(effect, value, good, icon)
 	local text = common.get_localised_string("effects_description_" .. effect)
 	if text == nil or text == "" then text = effect .. ": %+n" end
@@ -498,11 +498,25 @@ end
 function skrolkpl.publish_strain()
 	local t = text()
 	for _, side in ipairs({ "ours", "enemy" }) do
-		local lines = {}
+		-- one line per effect, values summed over the strain's rots (as the event message shows them)
+		local order, sums, info = {}, {}, {}
 		for _, id in ipairs(skrolkpl.persistent.strain) do
 			local rot = ROT_BY_ID[id]
 			for _, e in ipairs(rot and rot["show_" .. side] or {}) do
-				lines[#lines + 1] = effect_text(e[1], e[3], e[4], e[5]) .. t.rot_mark
+				if sums[e[1]] == nil then
+					order[#order + 1] = e[1]
+					sums[e[1]] = 0
+					info[e[1]] = e
+				end
+				sums[e[1]] = sums[e[1]] + e[3]
+			end
+		end
+		local lines = {}
+		for _, effect in ipairs(order) do
+			local value, e = sums[effect], info[effect]
+			if value ~= 0 then
+				local good = (value > 0) == e[4]
+				lines[#lines + 1] = effect_text(effect, value, good, good and e[5] or e[6]) .. t.rot_mark
 			end
 		end
 		for i = 1, STRAIN_LINES do
