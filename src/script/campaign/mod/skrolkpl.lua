@@ -22,7 +22,7 @@ local START_SYMPTOM = "" --@@START_SYMPTOM@@
 local ROTS = {} --@@ROTS@@
 local ROT_BY_ID = {}
 for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
-local STRAIN_BUNDLE = "skrolkpl_strain_ours"
+local STRAIN_BUNDLES = { ours = "skrolkpl_strain_ours", enemy = "skrolkpl_strain_enemy" }
 local FORCE_SCOPE = "force_to_force_own" -- army effects; every other scope is a settlement's
 local STRAIN_LINES = 6 -- rot lines per side in the plague tooltip (3 rots x up to 2 effects)
 local BASE_DURATION = 3 -- plague duration at duration level 0 (Nurgle's slot: 3/4/5/6 turns)
@@ -553,26 +553,27 @@ function skrolkpl.publish_strain()
 	end
 end
 
--- An event message: what the strain does to Pestilens and to the enemy, or "the strain holds".
-local function announce(faction, strain)
+-- An event message: a plate per side with the strain's summed effects (the enemy plate only when the
+-- enemy gets anything), or "the strain holds".
+function skrolkpl.announce_strain()
+	local strain = skrolkpl.persistent.strain
 	if #strain == 0 then
 		cm:trigger_incident(PESTILENS, INCIDENT_STABLE, true)
 		return
 	end
-	-- one plate of our effects; the game colours it by what is inside
-	local shown = cm:create_new_custom_effect_bundle(STRAIN_BUNDLE)
-	for _, id in ipairs(strain) do
-		for _, e in ipairs(ROT_BY_ID[id].show_ours) do shown:add_effect(e[1], e[2], e[3]) end
-	end
-	shown:set_duration(skrolkpl.persistent.strain_turns)
 	local payload = cm:create_payload()
-	payload:effect_bundle_to_faction(shown)
+	for _, side in ipairs({ "ours", "enemy" }) do
+		local effects = summed_effects(strain, side)
+		if #effects > 0 then
+			payload:effect_bundle_to_faction(build_bundle(STRAIN_BUNDLES[side], effects))
+		end
+	end
 	local incident = cm:create_incident_builder(INCIDENT_STRAIN)
 	incident:set_payload(payload)
-	cm:launch_custom_incident_from_builder(incident, faction)
-	-- The payload puts the bundles on the faction (top bar); they are only there to list the effects.
+	cm:launch_custom_incident_from_builder(incident, cm:get_faction(PESTILENS))
+	-- The payload puts the plates on the faction (top bar); they are only there to list the effects.
 	cm:callback(function()
-		cm:remove_effect_bundle(STRAIN_BUNDLE, PESTILENS)
+		for _, key in pairs(STRAIN_BUNDLES) do cm:remove_effect_bundle(key, PESTILENS) end
 	end, 1)
 end
 
@@ -636,7 +637,7 @@ local function on_plague_ritual(faction)
 	restrain(old, skrolkpl.persistent.strain)
 	log("strain: " .. (#skrolkpl.persistent.strain > 0 and table.concat(skrolkpl.persistent.strain, ", ") or "clean"))
 	skrolkpl.publish_strain()
-	announce(faction, skrolkpl.persistent.strain)
+	skrolkpl.announce_strain()
 	-- the engine marks the plague's symptoms as resting after the infection events
 	cm:callback(function()
 		local resting = symptoms_in_state(faction, "COOLDOWN")

@@ -503,18 +503,29 @@ def test_new_plague_swaps_the_strain_on_everyone_infected(g):
         assert applied(g, "force") == [(FORCE_ENEMY, 7, expected, 3)]
 
 
-def test_strain_message_is_one_plate_of_our_effects(g):
-    # author: one plate; it shows our pluses and minuses (the game colours it); the enemy side is in
-    # the plague tooltip
+def plates(g):
+    return {b.key: {e[1]: e[3] for e in b.effects.values()} for b in g.LAUNCHED.payload.bundles.values()}
+
+
+def test_strain_message_shows_us_and_the_enemy_in_one_event(g):
+    # in game a reverse strain showed our attack -5 but not the enemy's replenishment +10%:
+    # one event, a plate for each side, values summed
     first_tick(g)
-    g.RANDOM = g.lua.table_from([60] + [1] * 30)
-    make_plague(g)
+    g.skrolkpl.persistent.strain = g.lua.table_from(["feverish_foes"])
+    g.skrolkpl.announce_strain()
     assert ("launch_custom_incident", "skrolkpl_incident_strain_changed", PESTILENS) in calls(g)
-    rid = py_list(g.skrolkpl.persistent.strain)[0]
-    rot = next(r for r in ROTS if r.id == rid)
-    plates = list(g.LAUNCHED.payload.bundles.values())
-    assert len(plates) == 1 and plates[0].key == "skrolkpl_strain_ours"
-    assert [tuple(e[i] for i in (1, 2, 3)) for e in plates[0].effects.values()] == [tuple(e) for e in rot.ours]
+    assert plates(g) == {
+        "skrolkpl_strain_ours": {"wh_main_effect_force_stat_melee_attack": -5.0},
+        "skrolkpl_strain_enemy": {"wh_main_effect_force_all_campaign_replenishment_rate": 10.0},
+    }
+
+
+def test_strain_message_sums_and_skips_an_empty_enemy_plate(g):
+    first_tick(g)
+    g.skrolkpl.persistent.strain = g.lua.table_from(["burrow_panic", "the_shakes"])  # rot only: nothing for them
+    g.skrolkpl.announce_strain()
+    assert plates(g) == {"skrolkpl_strain_ours": {"wh_main_effect_force_stat_leadership": -6.0,
+                                                  "wh_main_effect_force_stat_melee_defence": -5.0}}
 
 
 def test_clean_strain_message(g):
@@ -568,7 +579,7 @@ def test_strain_message_bundles_leave_the_faction(g):
     g.RANDOM = g.lua.table_from([60] + [1] * 30)
     make_plague(g)
     removed = {c[1] for c in calls(g, "remove_effect_bundle") if c[2] == PESTILENS}
-    assert {"skrolkpl_strain_ours"} <= removed
+    assert {"skrolkpl_strain_ours", "skrolkpl_strain_enemy"} <= removed
 
 
 def test_saved_grid_with_dropped_symptoms_is_rebuilt(g):

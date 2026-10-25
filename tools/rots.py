@@ -15,9 +15,8 @@ from dataclasses import dataclass
 from tools.rows import find, row, table_with
 
 COUNT_WEIGHTS = (50, 30, 15, 5)  # chance in % of 0, 1, 2, 3 rots
-# base of the scripted bundle the strain message shows: what the strain does to Pestilens (the enemy
-# side shows in the plague tooltip)
-STRAIN_BUNDLE = "skrolkpl_strain_ours"
+# bases of the scripted bundles the strain message shows, one plate per side, effects summed
+STRAIN_BUNDLES = {"ours": "skrolkpl_strain_ours", "enemy": "skrolkpl_strain_enemy"}
 INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
 INCIDENT_STABLE = "skrolkpl_incident_strain_stable"
 INCIDENT_TEMPLATE = "wh3_main_minor_cult_sartosan_vault"  # an incident launched with a scripted payload
@@ -102,8 +101,9 @@ TEXTS = {
            "stable_title": "Штамм устоял",
            "stable_desc": "Новая чума Скролка не испортилась: порчи нет.",
            "ours_title": "Штамм: Клан Пестиленс",
-           "ours_desc": "Эффекты порчи на заражённых армиях и поселениях Клана Пестиленс. "
-                        "Что порча делает врагам, видно в описании чумы."},
+           "ours_desc": "Эффекты порчи на заражённых армиях и поселениях Клана Пестиленс.",
+           "enemy_title": "Штамм: враги",
+           "enemy_desc": "Эффекты порчи на заражённых армиях и поселениях всех остальных фракций."},
     "en": {"rot_title": "Strain Rot",
            "rot_desc_ours": "The current strain's rots of Skrolk's plague, summed. Lasts as long as the plague.",
            "rot_desc_enemy": "The current strain's rots of Skrolk's plague, summed. Lasts as long as the plague.",
@@ -113,8 +113,9 @@ TEXTS = {
            "stable_title": "The Strain Holds",
            "stable_desc": "Skrolk's new plague came out clean: no rot.",
            "ours_title": "Strain: Clan Pestilens",
-           "ours_desc": "Rot effects on Clan Pestilens' infected armies and settlements. "
-                        "What the rot does to the enemy shows in the plague's tooltip."},
+           "ours_desc": "Rot effects on Clan Pestilens' infected armies and settlements.",
+           "enemy_title": "Strain: the enemy",
+           "enemy_desc": "Rot effects on every other faction's infected armies and settlements."},
 }
 
 
@@ -122,8 +123,8 @@ def make_rot_tables(table):
     bundles, incidents = table("effect_bundles_tables"), table("incidents_tables")
     new_bundles = [row(bundles, find(bundles, "key", _TEMPLATES[target]), key=key)
                    for (side, target), key in TARGET_BUNDLES.items()]
-    new_bundles.append(row(bundles, find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur"),
-                           key=STRAIN_BUNDLE))
+    faction_template = find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur")
+    new_bundles += [row(bundles, faction_template, key=key) for key in STRAIN_BUNDLES.values()]
     template = find(incidents, "key", INCIDENT_TEMPLATE)
     return [table_with(bundles, *new_bundles),
             table_with(incidents, row(incidents, template, key=INCIDENT_STRAIN, ui_image=INCIDENT_IMAGE),
@@ -136,8 +137,10 @@ def make_rot_loc(lang):
            ("incidents_localised_description_" + INCIDENT_STRAIN, t["strain_desc"]),
            ("incidents_localised_title_" + INCIDENT_STABLE, t["stable_title"]),
            ("incidents_localised_description_" + INCIDENT_STABLE, t["stable_desc"]),
-           ("effect_bundles_localised_title_" + STRAIN_BUNDLE, t["ours_title"]),
-           ("effect_bundles_localised_description_" + STRAIN_BUNDLE, t["ours_desc"])]
+           ("effect_bundles_localised_title_" + STRAIN_BUNDLES["ours"], t["ours_title"]),
+           ("effect_bundles_localised_description_" + STRAIN_BUNDLES["ours"], t["ours_desc"]),
+           ("effect_bundles_localised_title_" + STRAIN_BUNDLES["enemy"], t["enemy_title"]),
+           ("effect_bundles_localised_description_" + STRAIN_BUNDLES["enemy"], t["enemy_desc"])]
     for (side, target), key in TARGET_BUNDLES.items():
         out += [("effect_bundles_localised_title_" + key, t["rot_title"]),
                 ("effect_bundles_localised_description_" + key, t["rot_desc_" + side])]

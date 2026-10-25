@@ -1,7 +1,7 @@
 import pytest
 
 from conftest import vanilla_table
-from tools.rots import (COUNT_WEIGHTS, INCIDENT_STABLE, INCIDENT_STRAIN, ROTS, STRAIN_BUNDLE, TARGET_BUNDLES,
+from tools.rots import (COUNT_WEIGHTS, INCIDENT_STABLE, INCIDENT_STRAIN, ROTS, STRAIN_BUNDLES, TARGET_BUNDLES,
                         make_rot_loc, make_rot_tables)
 
 pytestmark = pytest.mark.game
@@ -68,8 +68,8 @@ def test_one_rot_bundle_per_target_kind(tables):
     assert target[TARGET_BUNDLES[("enemy", "force")]] == "force"
     assert target[TARGET_BUNDLES[("ours", "region")]] == "region"
     assert target[TARGET_BUNDLES[("enemy", "region")]] == "region"
-    assert target[STRAIN_BUNDLE] == "faction"
-    assert set(target) == set(TARGET_BUNDLES.values()) | {STRAIN_BUNDLE}
+    assert {target[k] for k in STRAIN_BUNDLES.values()} == {"faction"}
+    assert set(target) == set(TARGET_BUNDLES.values()) | set(STRAIN_BUNDLES.values())
     assert "effect_bundles_to_effects_junctions_tables" not in tables
 
 
@@ -84,6 +84,7 @@ def test_loc_both_languages():
         loc = dict(make_rot_loc(lang))
         assert loc["incidents_localised_title_" + INCIDENT_STRAIN]
         assert loc["incidents_localised_description_" + INCIDENT_STABLE]
-        assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLE]
+        assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLES["ours"]]
+        assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLES["enemy"]]
         for key in TARGET_BUNDLES.values():
             assert loc["effect_bundles_localised_title_" + key]
