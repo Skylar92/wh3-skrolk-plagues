@@ -14,17 +14,19 @@ def _lua_value(v):
 
 
 def lua_rots(rots):
-    """The rot catalogue as a Lua list: id, kind, weight, bundle keys per side/target, our effects."""
+    """The rot catalogue as a Lua list: id, kind, weight, bundle keys per side/target, effects per side."""
     from tools.rots import rot_bundles
     items = []
     for rot in rots:
         b = rot_bundles(rot)
-        show = ", ".join("{ %s, %s, %s }" % tuple(_lua_value(x) for x in e) for e in rot.ours)
+        def effects(es):
+            return ", ".join("{ %s, %s, %s }" % tuple(_lua_value(x) for x in e) for e in es)
         items.append(
             '{ id = "%s", kind = "%s", weight = %d, ours_force = %s, ours_region = %s, enemy_force = %s, '
-            'enemy_region = %s, show = { %s } }' % (
+            'enemy_region = %s, show_ours = { %s }, show_enemy = { %s } }' % (
                 rot.id, rot.kind, rot.weight, _lua_value(b["ours"]["force"]), _lua_value(b["ours"]["region"]),
-                _lua_value(b["enemy"]["force"]), _lua_value(b["enemy"]["region"]), show))
+                _lua_value(b["enemy"]["force"]), _lua_value(b["enemy"]["region"]), effects(rot.ours),
+                effects(rot.enemy)))
     return "{\n\t" + ",\n\t".join(items) + ",\n}"
 
 

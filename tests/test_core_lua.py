@@ -410,14 +410,28 @@ def test_infected_enemy_army_gets_the_enemy_side(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
     g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
-    assert ("apply_effect_bundle_to_force", bundles("swift_paws", "enemy", "force"), 7, 0) in calls(g)
+    assert ("apply_effect_bundle_to_force", bundles("swift_paws", "enemy", "force"), 7, 3) in calls(g)
+
+
+def test_rot_lasts_as_long_as_the_plague(g):
+    # author: the plague mutated as a whole, so its rot lasts the plague's duration (3 + duration level)
+    first_tick(g)
+    g.FACTIONS[PESTILENS].treasury = 100000
+    g.FACTIONS[PESTILENS].food = 1000
+    g.skrolkpl.pending_levels = g.lua.table_from([2, 0, 0])
+    g.RANDOM = g.lua.table_from([60] + [1] * 30)
+    make_plague(g)
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(9, EMPIRE, PESTILENS))
+    applied = [c for c in calls(g, "apply_effect_bundle_to_force") if c[2] == 9]
+    assert applied and all(c[3] == 5 for c in applied)
+    assert g.LAUNCHED.payload.bundle.duration == 5
 
 
 def test_infected_own_army_gets_our_side(g):
     first_tick(g)
     set_strain(g, ["swift_paws"])
     g.fire("MilitaryForceInfectionEvent", g.force_infection(8, PESTILENS, PESTILENS))
-    assert ("apply_effect_bundle_to_force", bundles("swift_paws", "ours", "force"), 8, 0) in calls(g)
+    assert ("apply_effect_bundle_to_force", bundles("swift_paws", "ours", "force"), 8, 3) in calls(g)
 
 
 def test_rot_removed_when_plague_ends(g):
@@ -440,7 +454,7 @@ def test_settlement_rot_follows_plague_state(g):
     first_tick(g)
     set_strain(g, ["fecundity"])
     g.fire("RegionInfectionEvent", g.region_infection("r1", EMPIRE, PESTILENS))
-    assert ("apply_effect_bundle_to_region", bundles("fecundity", "enemy", "region"), "r1", 0) in calls(g)
+    assert ("apply_effect_bundle_to_region", bundles("fecundity", "enemy", "region"), "r1", 3) in calls(g)
     g.fire("RegionPlagueStateChanged", g.region_plague_state("r1", False))
     assert ("remove_effect_bundle_from_region", bundles("fecundity", "enemy", "region"), "r1") in calls(g)
 
@@ -455,19 +469,21 @@ def test_new_plague_swaps_the_strain_on_everyone_infected(g):
     new = py_list(g.skrolkpl.persistent.strain)
     assert len(new) == 1
     assert ("remove_effect_bundle_from_force", bundles("swift_paws", "enemy", "force"), 7) in calls(g)
-    assert ("apply_effect_bundle_to_force", bundles(new[0], "enemy", "force"), 7, 0) in calls(g) or         bundles(new[0], "enemy", "force") is None
+    assert ("apply_effect_bundle_to_force", bundles(new[0], "enemy", "force"), 7, 3) in calls(g) or         bundles(new[0], "enemy", "force") is None
 
 
-def test_strain_message_lists_our_effects(g):
+def test_strain_message_shows_both_sides(g):
+    # author: the message must show what the strain does to Pestilens and what to the enemy
     first_tick(g)
     g.RANDOM = g.lua.table_from([60] + [1] * 30)
     make_plague(g)
     assert ("launch_custom_incident", "skrolkpl_incident_strain_changed", PESTILENS) in calls(g)
     rid = py_list(g.skrolkpl.persistent.strain)[0]
     rot = next(r for r in ROTS if r.id == rid)
-    shown = g.LAUNCHED.payload.bundle
-    assert shown.key == "skrolkpl_strain"
-    assert [tuple(e[i] for i in (1, 2, 3)) for e in shown.effects.values()] == [tuple(e) for e in rot.ours]
+    shown = {b.key: [tuple(e[i] for i in (1, 2, 3)) for e in b.effects.values()]
+             for b in g.LAUNCHED.payload.bundles.values()}
+    assert shown["skrolkpl_strain_ours"] == [tuple(e) for e in rot.ours]
+    assert shown.get("skrolkpl_strain_enemy", []) == [tuple(e) for e in rot.enemy]
 
 
 def test_clean_strain_message(g):

@@ -2,7 +2,7 @@
 
 A new plague rolls 0-3 rots (COUNT_WEIGHTS). The rolled set is the current strain: every army and
 settlement infected by Skrolk's plagues carries its bundles until the next plague rolls a new one.
-Three kinds, weighed about the same:
+Three kinds; gifts (good for us) weigh as much as rot and reverse (bad for us) together:
 - gift: a plus to Pestilens, a minus to the enemy ("Gift of the Horned Rat");
 - rot: a minus to Pestilens only ("Rot in our ranks");
 - reverse: a minus to Pestilens and a different plus to the enemy ("Reverse strain").
@@ -14,7 +14,8 @@ from dataclasses import dataclass
 from tools.rows import find, row, table_with
 
 COUNT_WEIGHTS = (50, 30, 15, 5)  # chance in % of 0, 1, 2, 3 rots
-STRAIN_BUNDLE = "skrolkpl_strain"           # base of the scripted bundle the strain message shows
+# bases of the scripted bundles the strain message shows: what the strain does to Pestilens, and to the rest
+STRAIN_BUNDLES = {"ours": "skrolkpl_strain_ours", "enemy": "skrolkpl_strain_enemy"}
 INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
 INCIDENT_STABLE = "skrolkpl_incident_strain_stable"
 INCIDENT_TEMPLATE = "wh3_main_minor_cult_sartosan_vault"  # an incident launched with a scripted payload
@@ -37,7 +38,9 @@ class Rot:
     names: dict        # lang -> name
 
 
-def _rot(rid, kind, ours, enemy=(), weight=4, ru="", en=""):
+def _rot(rid, kind, ours, enemy=(), weight=None, ru="", en=""):
+    if weight is None:
+        weight = 8 if kind == "gift" else 4
     return Rot(rid, kind, weight, tuple(ours), tuple(enemy), {"ru": ru, "en": en})
 
 
@@ -58,7 +61,7 @@ ROTS = [
     _rot("horned_blessing", "gift",
          [("wh_main_effect_force_stat_leadership", F, 10.0), ("wh_main_effect_force_stat_melee_defence", F, 6.0)],
          [("wh_main_effect_force_stat_leadership", F, -10.0), ("wh_main_effect_force_stat_melee_defence", F, -6.0)],
-         weight=1, ru="Благословение Рогатой Крысы", en="Blessing of the Horned Rat"),
+         weight=2, ru="Благословение Рогатой Крысы", en="Blessing of the Horned Rat"),
     # rot in our ranks: a minus to us only
     _rot("brittle_bones", "rot", [("wh_main_effect_force_stat_armour", F, -10.0)], ru="Ломкие кости", en="Brittle Bones"),
     _rot("the_shakes", "rot", [("wh_main_effect_force_stat_melee_defence", F, -5.0)], ru="Трясучка", en="The Shakes"),
@@ -88,18 +91,24 @@ KIND_NAMES = {
 TEXTS = {
     "ru": {"bundle_title": "Порча штамма: %s", "bundle_desc": "%s. Действует, пока на цели чума Скролка.",
            "strain_title": "Штамм изменился",
-           "strain_desc": "Новая чума Скролка испортилась. Эффекты порчи действуют на всех, кого заразили "
-                          "чумы Скролка, пока не появится новая чума; враги получают зеркальные.",
+           "strain_desc": "Новая чума Скролка испортилась. Порча действует на всех, кого заразили чумы "
+                          "Скролка, столько же, сколько сама чума, и до появления новой чумы.",
            "stable_title": "Штамм устоял",
            "stable_desc": "Новая чума Скролка не испортилась: порчи нет.",
-           "display_title": "Текущий штамм", "display_desc": "Эффекты порчи для заражённых армий и поселений Пестиленса."},
+           "ours_title": "Штамм: Клан Пестиленс",
+           "ours_desc": "Эффекты порчи на заражённых армиях и поселениях Клана Пестиленс.",
+           "enemy_title": "Штамм: враги",
+           "enemy_desc": "Эффекты порчи на заражённых армиях и поселениях всех остальных фракций."},
     "en": {"bundle_title": "Strain rot: %s", "bundle_desc": "%s. Lasts while Skrolk's plague is on the target.",
            "strain_title": "The Strain Has Changed",
-           "strain_desc": "Skrolk's new plague has rotted. The rot's effects hold for everyone infected by "
-                          "Skrolk's plagues until the next plague; enemies get the mirror.",
+           "strain_desc": "Skrolk's new plague has rotted. The rot holds on everyone infected by Skrolk's "
+                          "plagues for as long as the plague itself, until the next plague.",
            "stable_title": "The Strain Holds",
            "stable_desc": "Skrolk's new plague came out clean: no rot.",
-           "display_title": "Current strain", "display_desc": "Rot effects on Pestilens' infected armies and settlements."},
+           "ours_title": "Strain: Clan Pestilens",
+           "ours_desc": "Rot effects on Clan Pestilens' infected armies and settlements.",
+           "enemy_title": "Strain: the enemy",
+           "enemy_desc": "Rot effects on every other faction's infected armies and settlements."},
 }
 
 
@@ -135,8 +144,9 @@ def make_rot_tables(table):
                         new_junctions.append(row(junctions, junctions.rows[0], effect_bundle_key=key,
                                                  effect_key=effect, effect_scope=scope, value=value,
                                                  advancement_stage="start_turn_completed"))
-    new_bundles.append(row(bundles, find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur"),
-                           key=STRAIN_BUNDLE))
+    faction_template = find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur")
+    for key in STRAIN_BUNDLES.values():
+        new_bundles.append(row(bundles, faction_template, key=key))
     template = find(incidents, "key", INCIDENT_TEMPLATE)
     return [table_with(bundles, *new_bundles), table_with(junctions, *new_junctions),
             table_with(incidents, row(incidents, template, key=INCIDENT_STRAIN, ui_image=INCIDENT_IMAGE),
@@ -149,8 +159,10 @@ def make_rot_loc(lang):
            ("incidents_localised_description_" + INCIDENT_STRAIN, t["strain_desc"]),
            ("incidents_localised_title_" + INCIDENT_STABLE, t["stable_title"]),
            ("incidents_localised_description_" + INCIDENT_STABLE, t["stable_desc"]),
-           ("effect_bundles_localised_title_" + STRAIN_BUNDLE, t["display_title"]),
-           ("effect_bundles_localised_description_" + STRAIN_BUNDLE, t["display_desc"])]
+           ("effect_bundles_localised_title_" + STRAIN_BUNDLES["ours"], t["ours_title"]),
+           ("effect_bundles_localised_description_" + STRAIN_BUNDLES["ours"], t["ours_desc"]),
+           ("effect_bundles_localised_title_" + STRAIN_BUNDLES["enemy"], t["enemy_title"]),
+           ("effect_bundles_localised_description_" + STRAIN_BUNDLES["enemy"], t["enemy_desc"])]
     for rot in ROTS:
         for side in ("ours", "enemy"):
             for target in ("force", "region"):

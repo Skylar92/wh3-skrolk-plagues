@@ -89,8 +89,8 @@ cm = {
 		return b
 	end,
 	create_payload = function()
-		local p = {}
-		function p:effect_bundle_to_faction(b) self.bundle = b end
+		local p = { bundles = {} }
+		function p:effect_bundle_to_faction(b) self.bundle = b; self.bundles[#self.bundles + 1] = b end
 		return p
 	end,
 	create_incident_builder = function(_, key)
@@ -191,11 +191,12 @@ function force_infection(cqi, faction_key, creator_key, removed)
 	}
 end
 
+-- The game's RegionInfectionEvent has no region() (in game: "attempt to call method 'region'").
 function region_infection(region_key, owner_key, creator_key)
 	return {
 		plague = function() return { creator_faction = function() return make_faction(creator_key) end } end,
-		region = function() return { name = function() return region_key end,
-		                             owning_faction = function() return make_faction(owner_key) end } end,
+		target_region = function() return { name = function() return region_key end,
+		                                    owning_faction = function() return make_faction(owner_key) end } end,
 	}
 end
 

@@ -22,7 +22,8 @@ local START_SYMPTOM = "" --@@START_SYMPTOM@@
 local ROTS = {} --@@ROTS@@
 local ROT_BY_ID = {}
 for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
-local STRAIN_BUNDLE = "skrolkpl_strain"
+local STRAIN_BUNDLES = { ours = "skrolkpl_strain_ours", enemy = "skrolkpl_strain_enemy" }
+local BASE_DURATION = 3 -- plague duration at duration level 0 (Nurgle's slot: 3/4/5/6 turns)
 local INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
 local INCIDENT_STABLE = "skrolkpl_incident_strain_stable"
 
@@ -74,8 +75,10 @@ end
 
 skrolkpl = {
 	-- unlocked: {[symptom key] = true}; strain: rot ids of the current strain;
+	-- strain_turns: the plague's duration, which its rot shares;
 	-- infected: what Skrolk's plagues hold now, {forces = {[cqi] = ours}, regions = {[key] = ours}}
-	persistent = { grid = nil, unlocked = nil, strain = {}, infected = { forces = {}, regions = {} } },
+	persistent = { grid = nil, unlocked = nil, strain = {}, strain_turns = BASE_DURATION,
+	               infected = { forces = {}, regions = {} } },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
 }
 
@@ -450,14 +453,14 @@ end
 
 local function set_force_rot(cqi, ours, strain, on)
 	for _, key in ipairs(strain_bundles(strain, ours, "force")) do
-		if on then cm:apply_effect_bundle_to_force(key, tonumber(cqi), 0)
+		if on then cm:apply_effect_bundle_to_force(key, tonumber(cqi), skrolkpl.persistent.strain_turns)
 		else cm:remove_effect_bundle_from_force(key, tonumber(cqi)) end
 	end
 end
 
 local function set_region_rot(region_key, ours, strain, on)
 	for _, key in ipairs(strain_bundles(strain, ours, "region")) do
-		if on then cm:apply_effect_bundle_to_region(key, region_key, 0)
+		if on then cm:apply_effect_bundle_to_region(key, region_key, skrolkpl.persistent.strain_turns)
 		else cm:remove_effect_bundle_from_region(key, region_key) end
 	end
 end
@@ -474,19 +477,27 @@ local function restrain(old, new)
 	end
 end
 
--- An event message: the strain's effects for Pestilens, or "the strain holds".
+-- An event message: what the strain does to Pestilens and to the enemy, or "the strain holds".
 local function announce(faction, strain)
 	if #strain == 0 then
 		cm:trigger_incident(PESTILENS, INCIDENT_STABLE, true)
 		return
 	end
-	local shown = cm:create_new_custom_effect_bundle(STRAIN_BUNDLE)
-	for _, id in ipairs(strain) do
-		for _, e in ipairs(ROT_BY_ID[id].show) do shown:add_effect(e[1], e[2], e[3]) end
-	end
-	shown:set_duration(1)
 	local payload = cm:create_payload()
-	payload:effect_bundle_to_faction(shown)
+	for _, side in ipairs({ "ours", "enemy" }) do
+		local shown = cm:create_new_custom_effect_bundle(STRAIN_BUNDLES[side])
+		local any = false
+		for _, id in ipairs(strain) do
+			for _, e in ipairs(ROT_BY_ID[id]["show_" .. side]) do
+				shown:add_effect(e[1], e[2], e[3])
+				any = true
+			end
+		end
+		if any then
+			shown:set_duration(skrolkpl.persistent.strain_turns)
+			payload:effect_bundle_to_faction(shown)
+		end
+	end
 	local incident = cm:create_incident_builder(INCIDENT_STRAIN)
 	incident:set_payload(payload)
 	cm:launch_custom_incident_from_builder(incident, faction)
@@ -507,8 +518,20 @@ local function on_force_infection(context)
 	set_force_rot(cqi, ours, strain, true)
 end
 
+-- RegionInfectionEvent has no region() (in game: "attempt to call method 'region'"); try the others.
+local function region_of(context)
+	for _, method in ipairs({ "target_region", "region", "settlement" }) do
+		local ok, value = pcall(function() return context[method](context) end)
+		if ok and value then
+			if method == "settlement" then return value:region() end
+			return value
+		end
+	end
+	error("RegionInfectionEvent: no region accessor")
+end
+
 local function on_region_infection(context)
-	local region = context:region()
+	local region = region_of(context)
 	local key = region:name()
 	local regions = skrolkpl.persistent.infected.regions
 	local strain = skrolkpl.persistent.strain
@@ -532,7 +555,9 @@ local function on_region_plague_state(context)
 end
 
 local function on_plague_ritual(faction)
+	local levels = skrolkpl.pending_levels or read_levels() or { 0, 0, 0 }
 	charge(faction)
+	skrolkpl.persistent.strain_turns = BASE_DURATION + levels[1]
 	local old = skrolkpl.persistent.strain
 	skrolkpl.persistent.strain = skrolkpl.roll_strain()
 	restrain(old, skrolkpl.persistent.strain)
@@ -632,5 +657,6 @@ end)
 cm:add_loading_game_callback(function(context)
 	skrolkpl.persistent = cm:load_named_value(SAVE_KEY, { grid = nil, unlocked = nil }, context)
 	skrolkpl.persistent.strain = skrolkpl.persistent.strain or {}
+	skrolkpl.persistent.strain_turns = skrolkpl.persistent.strain_turns or BASE_DURATION
 	skrolkpl.persistent.infected = skrolkpl.persistent.infected or { forces = {}, regions = {} }
 end)
