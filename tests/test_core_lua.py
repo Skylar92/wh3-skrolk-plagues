@@ -4,6 +4,7 @@ import pytest
 from lupa.lua51 import LuaRuntime
 
 from tools.render import render_core
+from tools.rots import ROTS, rot_bundles
 
 ROOT = Path(__file__).resolve().parent.parent
 TEMPLATE = (ROOT / "src/script/campaign/mod/skrolkpl.lua").read_text(encoding="utf-8")
@@ -17,7 +18,7 @@ DIRECT = "wh3_main_ritual_nur_plague_target_army"
 def g():
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(MOCK)
-    lua.execute(render_core(TEMPLATE, KEYS, KEYS[0]))
+    lua.execute(render_core(TEMPLATE, KEYS, KEYS[0], ROTS))
     g = lua.globals()
     g.lua = lua
     return g
@@ -377,3 +378,113 @@ def test_second_plague_possible_in_the_same_turn(g):
     open_keys = [k for k in KEYS if "UNLOCKED" in states(g, k)]
     usable = [k for k in KEYS if "COOLDOWN" not in states(g, k)]
     assert g.skrolkpl.has_plague_path(g.skrolkpl.persistent.grid, lset(g, open_keys), lset(g, usable))
+
+
+# --- strain rot -------------------------------------------------------------
+
+EMPIRE = "wh_main_emp_empire"
+
+
+@pytest.mark.parametrize("roll,count", [(1, 0), (50, 0), (51, 1), (80, 1), (81, 2), (95, 2), (96, 3), (100, 3)])
+def test_rot_count_follows_50_30_15_5(g, roll, count):
+    g.RANDOM = g.lua.table_from([roll] + [1] * 20)
+    assert len(py_list(g.skrolkpl.roll_strain())) == count
+
+
+def test_rolled_rots_are_distinct(g):
+    g.RANDOM = g.lua.table_from([100] + [1] * 30)   # three rots, always the first by weight
+    strain = py_list(g.skrolkpl.roll_strain())
+    assert len(strain) == 3 and len(set(strain)) == 3
+
+
+def set_strain(g, ids):
+    g.skrolkpl.persistent.strain = g.lua.table_from(ids)
+
+
+def bundles(rid, side, target):
+    rot = next(r for r in ROTS if r.id == rid)
+    return rot_bundles(rot)[side][target]
+
+
+def test_infected_enemy_army_gets_the_enemy_side(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws"])
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    assert ("apply_effect_bundle_to_force", bundles("swift_paws", "enemy", "force"), 7, 0) in calls(g)
+
+
+def test_infected_own_army_gets_our_side(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws"])
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(8, PESTILENS, PESTILENS))
+    assert ("apply_effect_bundle_to_force", bundles("swift_paws", "ours", "force"), 8, 0) in calls(g)
+
+
+def test_rot_removed_when_plague_ends(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws"])
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS, True))
+    assert ("remove_effect_bundle_from_force", bundles("swift_paws", "enemy", "force"), 7) in calls(g)
+
+
+def test_foreign_plague_takes_the_rot_away(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws"])
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, "wh3_main_nur_poxmakers_of_nurgle"))
+    assert ("remove_effect_bundle_from_force", bundles("swift_paws", "enemy", "force"), 7) in calls(g)
+
+
+def test_settlement_rot_follows_plague_state(g):
+    first_tick(g)
+    set_strain(g, ["fecundity"])
+    g.fire("RegionInfectionEvent", g.region_infection("r1", EMPIRE, PESTILENS))
+    assert ("apply_effect_bundle_to_region", bundles("fecundity", "enemy", "region"), "r1", 0) in calls(g)
+    g.fire("RegionPlagueStateChanged", g.region_plague_state("r1", False))
+    assert ("remove_effect_bundle_from_region", bundles("fecundity", "enemy", "region"), "r1") in calls(g)
+
+
+def test_new_plague_swaps_the_strain_on_everyone_infected(g):
+    first_tick(g)
+    g.FACTIONS[PESTILENS].treasury = 100000
+    set_strain(g, ["swift_paws"])
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    g.RANDOM = g.lua.table_from([60] + [1] * 30)   # one rot: the first one by weight
+    make_plague(g)
+    new = py_list(g.skrolkpl.persistent.strain)
+    assert len(new) == 1
+    assert ("remove_effect_bundle_from_force", bundles("swift_paws", "enemy", "force"), 7) in calls(g)
+    assert ("apply_effect_bundle_to_force", bundles(new[0], "enemy", "force"), 7, 0) in calls(g) or         bundles(new[0], "enemy", "force") is None
+
+
+def test_strain_message_lists_our_effects(g):
+    first_tick(g)
+    g.RANDOM = g.lua.table_from([60] + [1] * 30)
+    make_plague(g)
+    assert ("launch_custom_incident", "skrolkpl_incident_strain_changed", PESTILENS) in calls(g)
+    rid = py_list(g.skrolkpl.persistent.strain)[0]
+    rot = next(r for r in ROTS if r.id == rid)
+    shown = g.LAUNCHED.payload.bundle
+    assert shown.key == "skrolkpl_strain"
+    assert [tuple(e[i] for i in (1, 2, 3)) for e in shown.effects.values()] == [tuple(e) for e in rot.ours]
+
+
+def test_clean_strain_message(g):
+    first_tick(g)
+    g.RANDOM = g.lua.table_from([10] + [1] * 30)
+    make_plague(g)
+    assert ("trigger_incident", PESTILENS, "skrolkpl_incident_strain_stable", True) in calls(g)
+
+
+def test_strain_and_infected_survive_save(g):
+    first_tick(g)
+    set_strain(g, ["swift_paws"])
+    g.fire("MilitaryForceInfectionEvent", g.force_infection(7, EMPIRE, PESTILENS))
+    for f in g.SAVE_CALLBACKS.values():
+        f({})
+    g.skrolkpl.persistent.strain = g.lua.table_from([])
+    for f in g.LOAD_CALLBACKS.values():
+        f({})
+    assert py_list(g.skrolkpl.persistent.strain) == ["swift_paws"]
+    assert g.skrolkpl.persistent.infected.forces["7"] is not None

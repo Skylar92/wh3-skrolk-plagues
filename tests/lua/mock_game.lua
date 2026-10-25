@@ -77,6 +77,31 @@ cm = {
 		FACTIONS[faction].food = FACTIONS[faction].food + amount
 	end,
 	apply_effect_bundle = function(_, ...) rec("apply_effect_bundle", ...) end,
+	apply_effect_bundle_to_force = function(_, ...) rec("apply_effect_bundle_to_force", ...) end,
+	remove_effect_bundle_from_force = function(_, ...) rec("remove_effect_bundle_from_force", ...) end,
+	apply_effect_bundle_to_region = function(_, ...) rec("apply_effect_bundle_to_region", ...) end,
+	remove_effect_bundle_from_region = function(_, ...) rec("remove_effect_bundle_from_region", ...) end,
+	trigger_incident = function(_, ...) rec("trigger_incident", ...) end,
+	create_new_custom_effect_bundle = function(_, key)
+		local b = { key = key, effects = {} }
+		function b:add_effect(effect, scope, value) self.effects[#self.effects + 1] = { effect, scope, value } end
+		function b:set_duration(d) self.duration = d end
+		return b
+	end,
+	create_payload = function()
+		local p = {}
+		function p:effect_bundle_to_faction(b) self.bundle = b end
+		return p
+	end,
+	create_incident_builder = function(_, key)
+		local ib = { key = key }
+		function ib:set_payload(p) self.payload = p end
+		return ib
+	end,
+	launch_custom_incident_from_builder = function(_, builder, faction)
+		LAUNCHED = builder
+		rec("launch_custom_incident", builder.key, faction:name())
+	end,
 	override_ui = function(_, ...) rec("override_ui", ...) end,
 	set_plague_component_state = function(_, faction, key, state, value)
 		rec("set_plague_component_state", faction:name(), key, state, value)
@@ -148,4 +173,35 @@ end
 
 function faction_context(faction_key)
 	return { faction = function() return make_faction(faction_key) end }
+end
+
+local function make_force(cqi, faction_key)
+	return {
+		command_queue_index = function() return cqi end,
+		faction = function() return make_faction(faction_key) end,
+	}
+end
+
+function force_infection(cqi, faction_key, creator_key, removed)
+	return {
+		plague = function() return { creator_faction = function() return make_faction(creator_key) end } end,
+		target_force = function() return make_force(cqi, faction_key) end,
+		is_removed = function() return removed == true end,
+		is_creation = function() return false end,
+	}
+end
+
+function region_infection(region_key, owner_key, creator_key)
+	return {
+		plague = function() return { creator_faction = function() return make_faction(creator_key) end } end,
+		region = function() return { name = function() return region_key end,
+		                             owning_faction = function() return make_faction(owner_key) end } end,
+	}
+end
+
+function region_plague_state(region_key, infected)
+	return {
+		region = function() return { name = function() return region_key end } end,
+		is_infected = function() return infected end,
+	}
 end

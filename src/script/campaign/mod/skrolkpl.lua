@@ -18,6 +18,13 @@
 -- open at the start (plagues must begin with an open symptom; used symptoms open up later).
 local SYMPTOM_KEYS = {} --@@SYMPTOM_KEYS@@
 local START_SYMPTOM = "" --@@START_SYMPTOM@@
+-- Filled in by tools/build.py from tools/rots.py: the strain rot catalogue.
+local ROTS = {} --@@ROTS@@
+local ROT_BY_ID = {}
+for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
+local STRAIN_BUNDLE = "skrolkpl_strain"
+local INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
+local INCIDENT_STABLE = "skrolkpl_incident_strain_stable"
 
 local PESTILENS = "wh2_main_skv_clan_pestilens"
 local GRID_SIZE = 18
@@ -66,7 +73,9 @@ local function log(msg)
 end
 
 skrolkpl = {
-	persistent = { grid = nil, unlocked = nil }, -- unlocked: {[symptom key] = true}
+	-- unlocked: {[symptom key] = true}; strain: rot ids of the current strain;
+	-- infected: what Skrolk's plagues hold now, {forces = {[cqi] = ours}, regions = {[key] = ours}}
+	persistent = { grid = nil, unlocked = nil, strain = {}, infected = { forces = {}, regions = {} } },
 	pending_levels = nil, -- {duration, spread, immunity} read from the window on Infect
 }
 
@@ -173,6 +182,28 @@ function skrolkpl.build_grid(keys, open, usable)
 		if grid[slot] == nil then grid[slot] = table.remove(rest, 1) end
 	end
 	return grid
+end
+
+-- The rots a new plague picks up: 0-3 (50/30/15/5 %), distinct, drawn by weight.
+function skrolkpl.roll_strain()
+	local r = cm:random_number(100)
+	local count = (r <= 50 and 0) or (r <= 80 and 1) or (r <= 95 and 2) or 3
+	local pool, strain = {}, {}
+	for i, rot in ipairs(ROTS) do pool[i] = rot end
+	for _ = 1, count do
+		local total = 0
+		for _, rot in ipairs(pool) do total = total + rot.weight end
+		local pick = cm:random_number(total)
+		for i, rot in ipairs(pool) do
+			pick = pick - rot.weight
+			if pick <= 0 then
+				strain[#strain + 1] = rot.id
+				table.remove(pool, i)
+				break
+			end
+		end
+	end
+	return strain
 end
 
 -- nil when the plague's full price can be paid, else the missing resource and the price in it.
@@ -403,8 +434,110 @@ local function keep_a_plague_possible(faction)
 	end
 end
 
+------------------------------------------------------------------------------
+-- strain rot on the targets of Skrolk's plagues
+------------------------------------------------------------------------------
+
+local function strain_bundles(strain, ours, target)
+	local out = {}
+	for _, id in ipairs(strain) do
+		local rot = ROT_BY_ID[id]
+		local key = rot and rot[(ours and "ours_" or "enemy_") .. target]
+		if key then out[#out + 1] = key end
+	end
+	return out
+end
+
+local function set_force_rot(cqi, ours, strain, on)
+	for _, key in ipairs(strain_bundles(strain, ours, "force")) do
+		if on then cm:apply_effect_bundle_to_force(key, tonumber(cqi), 0)
+		else cm:remove_effect_bundle_from_force(key, tonumber(cqi)) end
+	end
+end
+
+local function set_region_rot(region_key, ours, strain, on)
+	for _, key in ipairs(strain_bundles(strain, ours, "region")) do
+		if on then cm:apply_effect_bundle_to_region(key, region_key, 0)
+		else cm:remove_effect_bundle_from_region(key, region_key) end
+	end
+end
+
+-- Swap every infected target from the old strain to the new one.
+local function restrain(old, new)
+	for cqi, ours in pairs(skrolkpl.persistent.infected.forces) do
+		set_force_rot(cqi, ours, old, false)
+		set_force_rot(cqi, ours, new, true)
+	end
+	for key, ours in pairs(skrolkpl.persistent.infected.regions) do
+		set_region_rot(key, ours, old, false)
+		set_region_rot(key, ours, new, true)
+	end
+end
+
+-- An event message: the strain's effects for Pestilens, or "the strain holds".
+local function announce(faction, strain)
+	if #strain == 0 then
+		cm:trigger_incident(PESTILENS, INCIDENT_STABLE, true)
+		return
+	end
+	local shown = cm:create_new_custom_effect_bundle(STRAIN_BUNDLE)
+	for _, id in ipairs(strain) do
+		for _, e in ipairs(ROT_BY_ID[id].show) do shown:add_effect(e[1], e[2], e[3]) end
+	end
+	shown:set_duration(1)
+	local payload = cm:create_payload()
+	payload:effect_bundle_to_faction(shown)
+	local incident = cm:create_incident_builder(INCIDENT_STRAIN)
+	incident:set_payload(payload)
+	cm:launch_custom_incident_from_builder(incident, faction)
+end
+
+local function on_force_infection(context)
+	local force = context:target_force()
+	local cqi = tostring(force:command_queue_index())
+	local forces = skrolkpl.persistent.infected.forces
+	local strain = skrolkpl.persistent.strain
+	if forces[cqi] ~= nil then -- drop the old rot first: plague ended, replaced, or re-applied
+		set_force_rot(cqi, forces[cqi], strain, false)
+		forces[cqi] = nil
+	end
+	if context:plague():creator_faction():name() ~= PESTILENS or context:is_removed() then return end
+	local ours = force:faction():name() == PESTILENS
+	forces[cqi] = ours
+	set_force_rot(cqi, ours, strain, true)
+end
+
+local function on_region_infection(context)
+	local region = context:region()
+	local key = region:name()
+	local regions = skrolkpl.persistent.infected.regions
+	local strain = skrolkpl.persistent.strain
+	if regions[key] ~= nil then
+		set_region_rot(key, regions[key], strain, false)
+		regions[key] = nil
+	end
+	if context:plague():creator_faction():name() ~= PESTILENS then return end
+	local ours = region:owning_faction():name() == PESTILENS
+	regions[key] = ours
+	set_region_rot(key, ours, strain, true)
+end
+
+local function on_region_plague_state(context)
+	local key = context:region():name()
+	local regions = skrolkpl.persistent.infected.regions
+	if regions[key] ~= nil and not context:is_infected() then
+		set_region_rot(key, regions[key], skrolkpl.persistent.strain, false)
+		regions[key] = nil
+	end
+end
+
 local function on_plague_ritual(faction)
 	charge(faction)
+	local old = skrolkpl.persistent.strain
+	skrolkpl.persistent.strain = skrolkpl.roll_strain()
+	restrain(old, skrolkpl.persistent.strain)
+	log("strain: " .. (#skrolkpl.persistent.strain > 0 and table.concat(skrolkpl.persistent.strain, ", ") or "clean"))
+	announce(faction, skrolkpl.persistent.strain)
 	-- the engine marks the plague's symptoms as resting after the infection events
 	cm:callback(function()
 		local resting = symptoms_in_state(faction, "COOLDOWN")
@@ -471,6 +604,18 @@ listen("panel_click", "ComponentLClickUp",
 		cm:callback(refresh_panel, 0.1) -- after the window applied the click
 	end)
 
+listen("force_infection", "MilitaryForceInfectionEvent",
+	function() return human_pestilens() ~= nil end,
+	on_force_infection)
+
+listen("region_infection", "RegionInfectionEvent",
+	function() return human_pestilens() ~= nil end,
+	on_region_infection)
+
+listen("region_plague_state", "RegionPlagueStateChanged",
+	function() return human_pestilens() ~= nil end,
+	on_region_plague_state)
+
 listen("turn_start", "FactionTurnStart",
 	function(context) return context:faction():name() == PESTILENS and context:faction():is_human() end,
 	function(context) on_turn_start(context:faction()) end)
@@ -486,4 +631,6 @@ end)
 
 cm:add_loading_game_callback(function(context)
 	skrolkpl.persistent = cm:load_named_value(SAVE_KEY, { grid = nil, unlocked = nil }, context)
+	skrolkpl.persistent.strain = skrolkpl.persistent.strain or {}
+	skrolkpl.persistent.infected = skrolkpl.persistent.infected or { forces = {}, regions = {} }
 end)
