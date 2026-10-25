@@ -323,30 +323,20 @@ local function reshuffle(faction)
 	bless(faction, usable)
 end
 
-local function russian()
-	return common.get_localised_string("cultures_name_wh_main_emp_empire") == "Империя"
-end
-
 local FOOD_ICON = "[[img:icon_skaven_food]][[/img]]"
 local GOLD_ICON = "[[img:icon_treasury]][[/img]]"
-
-local TEXT = {
-	ru = {
-		ours = "Клан Пестиленс", others = "Прочие фракции",
-		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Каждый уровень слота: +2 " .. FOOD_ICON,
-		food = "Нужно %d " .. FOOD_ICON, gold = "Нужно %d " .. GOLD_ICON,
-		rot_mark = " (порча)",
-	},
-	en = {
-		ours = "Clan Pestilens", others = "Other factions",
-		price = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON, level_note = "Each slot level: +2 " .. FOOD_ICON,
-		food = "Needs %d " .. FOOD_ICON, gold = "Needs %d " .. GOLD_ICON,
-		rot_mark = " (rot)",
-	},
-}
+local PRICE_TEXT = "%d " .. FOOD_ICON .. "  %d " .. GOLD_ICON
+-- {name = English}: the texts this script shows (tools/ui_texts.py), read from the loc file so a
+-- translation pack translates them; English when the loc has none
+local UI_TEXT = {} --@@UI_TEXTS@@
 
 local function text()
-	return russian() and TEXT.ru or TEXT.en
+	local out = { price = PRICE_TEXT }
+	for name, english in pairs(UI_TEXT) do
+		local s = common.get_localised_string("campaign_localised_strings_string_skrolkpl_" .. name)
+		out[name] = (s ~= nil and s ~= "") and s or english
+	end
+	return out
 end
 
 -- Slot levels as the window shows them now; nil when the window is not open.

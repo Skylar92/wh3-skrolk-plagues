@@ -93,11 +93,11 @@ KIND_NAMES = {
 }
 TEXTS = {
     "ru": {"rot_title": "Порча штамма",
-           "rot_desc_ours": "Порчи текущего штамма чумы Скролка, сложенные вместе. Длится столько же, сколько чума.",
-           "rot_desc_enemy": "Порчи текущего штамма чумы Скролка, сложенные вместе. Длится столько же, сколько чума.",
+           "rot_desc_ours": "Порча штамма той чумы Скролка, что здесь засела, всё вместе. Длится столько же, сколько чума.",
+           "rot_desc_enemy": "Порча штамма той чумы Скролка, что здесь засела, всё вместе. Длится столько же, сколько чума.",
            "strain_title": "Штамм изменился",
-           "strain_desc": "Новая чума Скролка испортилась. Порча действует на всех, кого заразили чумы "
-                          "Скролка, столько же, сколько сама чума, и до появления новой чумы.",
+           "strain_desc": "Новая чума Скролка испортилась. Её порча действует на всех, кого заразит эта чума, "
+                          "столько же, сколько сама чума. У каждой чумы Скролка своя порча.",
            "stable_title": "Штамм устоял",
            "stable_desc": "Новая чума Скролка не испортилась: порчи нет.",
            "ours_title": "Штамм: Клан Пестиленс",
@@ -105,16 +105,16 @@ TEXTS = {
            "enemy_title": "Штамм: враги",
            "enemy_desc": "Эффекты порчи на заражённых армиях и поселениях всех остальных фракций."},
     "en": {"rot_title": "Strain Rot",
-           "rot_desc_ours": "The current strain's rots of Skrolk's plague, summed. Lasts as long as the plague.",
-           "rot_desc_enemy": "The current strain's rots of Skrolk's plague, summed. Lasts as long as the plague.",
+           "rot_desc_ours": "The rot of the strain of Skrolk's plague festering here, summed. Lasts as long as the plague.",
+           "rot_desc_enemy": "The rot of the strain of Skrolk's plague festering here, summed. Lasts as long as the plague.",
            "strain_title": "The Strain Has Changed",
-           "strain_desc": "Skrolk's new plague has rotted. The rot holds on everyone infected by Skrolk's "
-                          "plagues for as long as the plague itself, until the next plague.",
+           "strain_desc": "Skrolk's new plague has rotted. Its rot holds on everyone this plague infects, for as "
+                          "long as the plague itself. Each of Skrolk's plagues carries its own rot.",
            "stable_title": "The Strain Holds",
            "stable_desc": "Skrolk's new plague came out clean: no rot.",
            "ours_title": "Strain: Clan Pestilens",
            "ours_desc": "Rot effects on Clan Pestilens' infected armies and settlements.",
-           "enemy_title": "Strain: the enemy",
+           "enemy_title": "Strain: Enemies",
            "enemy_desc": "Rot effects on every other faction's infected armies and settlements."},
 }
 

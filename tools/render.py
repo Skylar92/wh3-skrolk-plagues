@@ -1,4 +1,5 @@
 """Fill the build-time markers in the campaign script."""
+from tools.ui_texts import script_names
 
 
 def lua_string_list(values):
@@ -41,14 +42,20 @@ def lua_rots(rots, positive_good=None, icons=None):
     return "{\n\t" + ",\n\t".join(items) + ",\n}"
 
 
+def lua_texts(texts):
+    return "{ " + ", ".join('%s = "%s"' % (name, text.replace('"', '\\"')) for name, text in sorted(texts.items())) + " }"
+
+
 def render_core(template, symptom_keys, start_symptom, rots, positive_good=None, icons=None, always_rot=False):
     """always_rot: a test build where every new plague rots (1-3 rots, never clean)."""
     if start_symptom not in symptom_keys:
         raise ValueError("start symptom not in the catalogue: " + start_symptom)
-    for marker in ("{} --@@SYMPTOM_KEYS@@", '"" --@@START_SYMPTOM@@', "{} --@@ROTS@@", "false --@@ALWAYS_ROT@@"):
+    for marker in ("{} --@@SYMPTOM_KEYS@@", '"" --@@START_SYMPTOM@@', "{} --@@ROTS@@", "false --@@ALWAYS_ROT@@",
+                   "{} --@@UI_TEXTS@@"):
         if marker not in template:
             raise ValueError("marker missing: " + marker)
     return (template.replace("{} --@@SYMPTOM_KEYS@@", lua_string_list(symptom_keys))
             .replace('"" --@@START_SYMPTOM@@', '"%s"' % start_symptom)
             .replace("{} --@@ROTS@@", lua_rots(rots, positive_good, icons))
-            .replace("false --@@ALWAYS_ROT@@", "true" if always_rot else "false"))
+            .replace("false --@@ALWAYS_ROT@@", "true" if always_rot else "false")
+            .replace("{} --@@UI_TEXTS@@", lua_texts(script_names())))

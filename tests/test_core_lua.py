@@ -959,3 +959,29 @@ def test_plague_without_a_symptom_list_has_no_id(g):
     # the cauldron pox and vanilla plagues are not crafted; their component list may not exist
     plague = g.lua.eval("{ plague_components = function() error('no components') end }")
     assert g.skrolkpl.plague_id(plague) is None
+
+
+# --- texts ------------------------------------------------------------------
+
+def test_window_texts_come_from_the_translation(g):
+    # the Russian translation pack (or any other) replaces the loc file; the script reads its texts there
+    g.LOCALISED = g.lua.table_from({"campaign_localised_strings_string_skrolkpl_food": "Нужно %d еды"})
+    first_tick(g)
+    g.FACTIONS[PESTILENS].food = 5
+    open_panel(g)
+    assert g.UI["dy_cost"].text == "Нужно 20 еды"
+
+
+def test_rot_mark_from_the_translation(g):
+    g.LOCALISED = g.lua.table_from({"campaign_localised_strings_string_skrolkpl_rot_mark": " (порча)"})
+    first_tick(g)
+    set_strain(g, ["thick_hide"])
+    g.skrolkpl.publish_strains()
+    assert tooltip_lines(g, ID_A, "ours")[0].endswith(" (порча)")
+
+
+def test_english_texts_when_the_loc_has_none(g):
+    first_tick(g)
+    set_strain(g, ["thick_hide"])
+    g.skrolkpl.publish_strains()
+    assert tooltip_lines(g, ID_A, "ours")[0].endswith(" (rot)")

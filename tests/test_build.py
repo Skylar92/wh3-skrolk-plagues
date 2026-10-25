@@ -2,7 +2,8 @@ import re
 
 import pytest
 
-from tools.build import CORE_SCRIPT, PACK_NAME, SPIKE_SCRIPT, TABLE_FILE, build
+from tools.build import (CORE_SCRIPT, PACK_NAME, SPIKE_SCRIPT, TABLE_FILE, TRANSLATION_PACKS, build,
+                         build_translation)
 from tools.dbtable import decode_table, reference_columns
 from tools.loc import decode_loc
 from tools.packfile import read_pack
@@ -109,6 +110,29 @@ def test_release_has_no_duplicate_keys(release, schema):
         cols = [t.col(c) for c in key_columns(schema, t)]
         keys = [tuple(r[i] for i in cols) for r in t.rows]
         assert len(keys) == len(set(keys)), t.name
+
+
+def test_main_pack_speaks_english(release):
+    loc = dict(decode_loc(release["text/db/%s.loc" % TABLE_FILE]))
+    assert loc["plague_components_localised_name_skrolkpl_sym_black_death"] == "Black Death"
+
+
+def test_russian_translation_pack_replaces_the_loc_file(release, tmp_path):
+    # same path as the main pack's loc file: the translation pack, loaded first, wins the whole file
+    path = tmp_path / TRANSLATION_PACKS["ru"]
+    build_translation(path, "ru")
+    pack = read_pack(path)
+    assert list(pack) == ["text/db/%s.loc" % TABLE_FILE]
+    ru = dict(decode_loc(pack["text/db/%s.loc" % TABLE_FILE]))
+    en = dict(decode_loc(release["text/db/%s.loc" % TABLE_FILE]))
+    assert set(ru) == set(en)
+    assert ru["plague_components_localised_name_skrolkpl_sym_black_death"] == "Чёрная смерть"
+    assert TRANSLATION_PACKS["ru"] < PACK_NAME  # sorts first, so it loads first
+
+
+def test_release_ships_the_plague_window_layout(release):
+    from tools.window import WINDOW_PATH
+    assert b"skrolkpl_layout" in release[WINDOW_PATH]
 
 
 def test_unknown_variant_rejected(tmp_path):
