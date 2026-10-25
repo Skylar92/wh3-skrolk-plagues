@@ -6,8 +6,9 @@ Three kinds; gifts (good for us) weigh as much as rot and reverse (bad for us) t
 - gift: a plus to Pestilens, a minus to the enemy ("Gift of the Horned Rat");
 - rot: a minus to Pestilens only ("Rot in our ranks");
 - reverse: a minus to Pestilens and a different plus to the enemy ("Reverse strain").
-Each rot has army (force scope) and settlement (region/province scope) effects; their bundles are
-split by target, since a bundle on a force ignores region effects and the other way round.
+Each rot has army (force scope) and settlement (region/province scope) effects. A target carries one
+"strain rot" bundle: the script builds it from TARGET_BUNDLES with the strain's effects summed (custom
+bundle), army effects on armies and settlement effects on settlements.
 """
 from dataclasses import dataclass
 
@@ -27,6 +28,8 @@ R = "region_to_region_own"
 P = "province_to_province_own_unseen"
 RP = "region_to_province_own_unseen"
 _TEMPLATES = {"force": "wh3_dlc25_nur_battle_1_positive", "region": "wh3_dlc25_nur_settlement_1_positive"}
+TARGET_BUNDLES = {(side, target): "skrolkpl_strain_%s_%s" % (target, side)
+                  for side in ("ours", "enemy") for target in ("force", "region")}
 
 
 @dataclass(frozen=True)
@@ -90,7 +93,9 @@ KIND_NAMES = {
     "en": {"gift": "Gift of the Horned Rat", "rot": "Rot in Our Ranks", "reverse": "Reverse Strain"},
 }
 TEXTS = {
-    "ru": {"bundle_title": "Порча штамма: %s", "bundle_desc": "%s. Действует, пока на цели чума Скролка.",
+    "ru": {"rot_title": "Порча штамма",
+           "rot_desc_ours": "Порчи текущего штамма чумы Скролка, сложенные вместе. Длится столько же, сколько чума.",
+           "rot_desc_enemy": "Порчи текущего штамма чумы Скролка, сложенные вместе. Длится столько же, сколько чума.",
            "strain_title": "Штамм изменился",
            "strain_desc": "Новая чума Скролка испортилась. Порча действует на всех, кого заразили чумы "
                           "Скролка, столько же, сколько сама чума, и до появления новой чумы.",
@@ -99,7 +104,9 @@ TEXTS = {
            "ours_title": "Штамм: Клан Пестиленс",
            "ours_desc": "Эффекты порчи на заражённых армиях и поселениях Клана Пестиленс. "
                         "Что порча делает врагам, видно в описании чумы."},
-    "en": {"bundle_title": "Strain rot: %s", "bundle_desc": "%s. Lasts while Skrolk's plague is on the target.",
+    "en": {"rot_title": "Strain Rot",
+           "rot_desc_ours": "The current strain's rots of Skrolk's plague, summed. Lasts as long as the plague.",
+           "rot_desc_enemy": "The current strain's rots of Skrolk's plague, summed. Lasts as long as the plague.",
            "strain_title": "The Strain Has Changed",
            "strain_desc": "Skrolk's new plague has rotted. The rot holds on everyone infected by Skrolk's "
                           "plagues for as long as the plague itself, until the next plague.",
@@ -111,42 +118,14 @@ TEXTS = {
 }
 
 
-def _target(scope):
-    return "force" if scope == F else "region"
-
-
-def rot_bundles(rot):
-    """{"ours"/"enemy": {"force"/"region": bundle key or None}} for one rot."""
-    out = {}
-    for side, effects in (("ours", rot.ours), ("enemy", rot.enemy)):
-        out[side] = {}
-        for target in ("force", "region"):
-            has = any(_target(scope) == target for _, scope, _ in effects)
-            out[side][target] = "skrolkpl_rot_%s_%s_%s" % (rot.id, side, target) if has else None
-    return out
-
-
 def make_rot_tables(table):
-    bundles, junctions = table("effect_bundles_tables"), table("effect_bundles_to_effects_junctions_tables")
-    incidents = table("incidents_tables")
-    new_bundles, new_junctions = [], []
-    for rot in ROTS:
-        keys = rot_bundles(rot)
-        for side, effects in (("ours", rot.ours), ("enemy", rot.enemy)):
-            for target in ("force", "region"):
-                key = keys[side][target]
-                if key is None:
-                    continue
-                new_bundles.append(row(bundles, find(bundles, "key", _TEMPLATES[target]), key=key))
-                for effect, scope, value in effects:
-                    if _target(scope) == target:
-                        new_junctions.append(row(junctions, junctions.rows[0], effect_bundle_key=key,
-                                                 effect_key=effect, effect_scope=scope, value=value,
-                                                 advancement_stage="start_turn_completed"))
+    bundles, incidents = table("effect_bundles_tables"), table("incidents_tables")
+    new_bundles = [row(bundles, find(bundles, "key", _TEMPLATES[target]), key=key)
+                   for (side, target), key in TARGET_BUNDLES.items()]
     new_bundles.append(row(bundles, find(bundles, "key", "wh3_dlc20_payload_eye_of_the_gods_features_nur"),
                            key=STRAIN_BUNDLE))
     template = find(incidents, "key", INCIDENT_TEMPLATE)
-    return [table_with(bundles, *new_bundles), table_with(junctions, *new_junctions),
+    return [table_with(bundles, *new_bundles),
             table_with(incidents, row(incidents, template, key=INCIDENT_STRAIN, ui_image=INCIDENT_IMAGE),
                        row(incidents, template, key=INCIDENT_STABLE, ui_image=INCIDENT_IMAGE))]
 
@@ -159,12 +138,7 @@ def make_rot_loc(lang):
            ("incidents_localised_description_" + INCIDENT_STABLE, t["stable_desc"]),
            ("effect_bundles_localised_title_" + STRAIN_BUNDLE, t["ours_title"]),
            ("effect_bundles_localised_description_" + STRAIN_BUNDLE, t["ours_desc"])]
-    for rot in ROTS:
-        for side in ("ours", "enemy"):
-            for target in ("force", "region"):
-                key = rot_bundles(rot)[side][target]
-                if key:
-                    out += [("effect_bundles_localised_title_" + key, t["bundle_title"] % rot.names[lang]),
-                            ("effect_bundles_localised_description_" + key,
-                             t["bundle_desc"] % KIND_NAMES[lang][rot.kind])]
+    for (side, target), key in TARGET_BUNDLES.items():
+        out += [("effect_bundles_localised_title_" + key, t["rot_title"]),
+                ("effect_bundles_localised_description_" + key, t["rot_desc_" + side])]
     return out

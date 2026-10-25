@@ -61,7 +61,12 @@ end
 
 cm = {
 	get_faction = function(_, key) return make_faction(key) end,
-	model = function() return { turn_number = function() return TURN end } end,
+	model = function() return {
+		turn_number = function() return TURN end,
+		military_force_for_command_queue_index = function(_, cqi)
+			return { command_queue_index = function() return cqi end, is_null_interface = function() return false end }
+		end,
+	} end,
 	random_number = function(_, max, min)
 		if RANDOM_FN then return RANDOM_FN(max) end
 		local v = table.remove(RANDOM, 1) or 1
@@ -79,6 +84,14 @@ cm = {
 	end,
 	apply_effect_bundle = function(_, ...) rec("apply_effect_bundle", ...) end,
 	apply_effect_bundle_to_force = function(_, ...) rec("apply_effect_bundle_to_force", ...) end,
+	apply_custom_effect_bundle_to_force = function(_, bundle, force)
+		rec("apply_custom_force", bundle, force:command_queue_index())
+	end,
+	apply_custom_effect_bundle_to_region = function(_, bundle, region)
+		rec("apply_custom_region", bundle, region:name())
+	end,
+	get_region = function(_, key) return { name = function() return key end,
+	                                       is_null_interface = function() return false end } end,
 	remove_effect_bundle_from_force = function(_, ...) rec("remove_effect_bundle_from_force", ...) end,
 	apply_effect_bundle_to_region = function(_, ...) rec("apply_effect_bundle_to_region", ...) end,
 	remove_effect_bundle_from_region = function(_, ...) rec("remove_effect_bundle_from_region", ...) end,

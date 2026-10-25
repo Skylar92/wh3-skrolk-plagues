@@ -1,8 +1,8 @@
 import pytest
 
 from conftest import vanilla_table
-from tools.rots import (COUNT_WEIGHTS, INCIDENT_STABLE, INCIDENT_STRAIN, ROTS, STRAIN_BUNDLE, make_rot_loc,
-                        make_rot_tables, rot_bundles)
+from tools.rots import (COUNT_WEIGHTS, INCIDENT_STABLE, INCIDENT_STRAIN, ROTS, STRAIN_BUNDLE, TARGET_BUNDLES,
+                        make_rot_loc, make_rot_tables)
 
 pytestmark = pytest.mark.game
 
@@ -61,28 +61,16 @@ def test_effects_exist_and_scopes_are_own(vanilla):
             assert scope in ALLOWED_SCOPES, (r.id, scope)
 
 
-def test_bundles_split_by_target(tables):
+def test_one_rot_bundle_per_target_kind(tables):
+    # the script fills these with the strain's summed effects (custom bundles); no rows of their own
     target = {r["key"]: r["bundle_target"] for r in rows(tables, "effect_bundles_tables")}
-    j = rows(tables, "effect_bundles_to_effects_junctions_tables")
-    for key, bundle_target in target.items():
-        if key == STRAIN_BUNDLE:
-            assert bundle_target == "faction"
-            continue
-        scopes = {r["effect_scope"] for r in j if r["effect_bundle_key"] == key}
-        assert scopes, key
-        if bundle_target == "force":
-            assert scopes == {"force_to_force_own"}, key
-        else:
-            assert "force_to_force_own" not in scopes, key
-
-
-def test_rot_bundles_lists_what_exists(tables):
-    keys = {r["key"] for r in rows(tables, "effect_bundles_tables")}
-    for r in ROTS:
-        for side in ("ours", "enemy"):
-            for target in ("force", "region"):
-                bundle = rot_bundles(r)[side][target]
-                assert (bundle is None) or (bundle in keys)
+    assert target[TARGET_BUNDLES[("ours", "force")]] == "force"
+    assert target[TARGET_BUNDLES[("enemy", "force")]] == "force"
+    assert target[TARGET_BUNDLES[("ours", "region")]] == "region"
+    assert target[TARGET_BUNDLES[("enemy", "region")]] == "region"
+    assert target[STRAIN_BUNDLE] == "faction"
+    assert set(target) == set(TARGET_BUNDLES.values()) | {STRAIN_BUNDLE}
+    assert "effect_bundles_to_effects_junctions_tables" not in tables
 
 
 def test_incidents(tables):
@@ -97,9 +85,5 @@ def test_loc_both_languages():
         assert loc["incidents_localised_title_" + INCIDENT_STRAIN]
         assert loc["incidents_localised_description_" + INCIDENT_STABLE]
         assert loc["effect_bundles_localised_title_" + STRAIN_BUNDLE]
-        for r in ROTS:
-            for side in ("ours", "enemy"):
-                for target in ("force", "region"):
-                    bundle = rot_bundles(r)[side][target]
-                    if bundle:
-                        assert loc["effect_bundles_localised_title_" + bundle]
+        for key in TARGET_BUNDLES.values():
+            assert loc["effect_bundles_localised_title_" + key]

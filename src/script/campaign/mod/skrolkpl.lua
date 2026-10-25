@@ -23,6 +23,7 @@ local ROTS = {} --@@ROTS@@
 local ROT_BY_ID = {}
 for _, rot in ipairs(ROTS) do ROT_BY_ID[rot.id] = rot end
 local STRAIN_BUNDLE = "skrolkpl_strain_ours"
+local FORCE_SCOPE = "force_to_force_own" -- army effects; every other scope is a settlement's
 local STRAIN_LINES = 6 -- rot lines per side in the plague tooltip (3 rots x up to 2 effects)
 local BASE_DURATION = 3 -- plague duration at duration level 0 (Nurgle's slot: 3/4/5/6 turns)
 local INCIDENT_STRAIN = "skrolkpl_incident_strain_changed"
@@ -444,27 +445,69 @@ end
 -- strain rot on the targets of Skrolk's plagues
 ------------------------------------------------------------------------------
 
-local function strain_bundles(strain, ours, target)
-	local out = {}
+-- The strain's effects for one side, summed per effect, in first-seen order:
+-- {{effect, scope, sum, bigger_is_better, icon, icon_negative}, ...}; sums of zero dropped.
+local function summed_effects(strain, side)
+	local order, sums, info = {}, {}, {}
 	for _, id in ipairs(strain) do
 		local rot = ROT_BY_ID[id]
-		local key = rot and rot[(ours and "ours_" or "enemy_") .. target]
-		if key then out[#out + 1] = key end
+		for _, e in ipairs(rot and rot["show_" .. side] or {}) do
+			if sums[e[1]] == nil then
+				order[#order + 1] = e[1]
+				sums[e[1]] = 0
+				info[e[1]] = e
+			end
+			sums[e[1]] = sums[e[1]] + e[3]
+		end
+	end
+	local out = {}
+	for _, effect in ipairs(order) do
+		local e = info[effect]
+		if sums[effect] ~= 0 then out[#out + 1] = { effect, e[2], sums[effect], e[4], e[5], e[6] } end
 	end
 	return out
 end
 
+-- One "strain rot" bundle on a target: the strain's summed effects for that side and target kind.
+local function rot_bundle(strain, ours, target)
+	local key = "skrolkpl_strain_" .. target .. "_" .. (ours and "ours" or "enemy")
+	local effects = {}
+	for _, e in ipairs(summed_effects(strain, ours and "ours" or "enemy")) do
+		if (e[2] == FORCE_SCOPE) == (target == "force") then effects[#effects + 1] = e end
+	end
+	return key, effects
+end
+
+local function build_bundle(key, effects)
+	local bundle = cm:create_new_custom_effect_bundle(key)
+	for _, e in ipairs(effects) do bundle:add_effect(e[1], e[2], e[3]) end
+	bundle:set_duration(skrolkpl.persistent.strain_turns)
+	return bundle
+end
+
 local function set_force_rot(cqi, ours, strain, on)
-	for _, key in ipairs(strain_bundles(strain, ours, "force")) do
-		if on then cm:apply_effect_bundle_to_force(key, tonumber(cqi), skrolkpl.persistent.strain_turns)
-		else cm:remove_effect_bundle_from_force(key, tonumber(cqi)) end
+	local key, effects = rot_bundle(strain, ours, "force")
+	if not on then
+		cm:remove_effect_bundle_from_force(key, tonumber(cqi))
+		return
+	end
+	if #effects == 0 then return end
+	local force = cm:model():military_force_for_command_queue_index(tonumber(cqi))
+	if force and not force:is_null_interface() then
+		cm:apply_custom_effect_bundle_to_force(build_bundle(key, effects), force)
 	end
 end
 
 local function set_region_rot(region_key, ours, strain, on)
-	for _, key in ipairs(strain_bundles(strain, ours, "region")) do
-		if on then cm:apply_effect_bundle_to_region(key, region_key, skrolkpl.persistent.strain_turns)
-		else cm:remove_effect_bundle_from_region(key, region_key) end
+	local key, effects = rot_bundle(strain, ours, "region")
+	if not on then
+		cm:remove_effect_bundle_from_region(key, region_key)
+		return
+	end
+	if #effects == 0 then return end
+	local region = cm:get_region(region_key)
+	if region and not region:is_null_interface() then
+		cm:apply_custom_effect_bundle_to_region(build_bundle(key, effects), region)
 	end
 end
 
@@ -499,25 +542,10 @@ function skrolkpl.publish_strain()
 	local t = text()
 	for _, side in ipairs({ "ours", "enemy" }) do
 		-- one line per effect, values summed over the strain's rots (as the event message shows them)
-		local order, sums, info = {}, {}, {}
-		for _, id in ipairs(skrolkpl.persistent.strain) do
-			local rot = ROT_BY_ID[id]
-			for _, e in ipairs(rot and rot["show_" .. side] or {}) do
-				if sums[e[1]] == nil then
-					order[#order + 1] = e[1]
-					sums[e[1]] = 0
-					info[e[1]] = e
-				end
-				sums[e[1]] = sums[e[1]] + e[3]
-			end
-		end
 		local lines = {}
-		for _, effect in ipairs(order) do
-			local value, e = sums[effect], info[effect]
-			if value ~= 0 then
-				local good = (value > 0) == e[4]
-				lines[#lines + 1] = effect_text(effect, value, good, good and e[5] or e[6]) .. t.rot_mark
-			end
+		for _, e in ipairs(summed_effects(skrolkpl.persistent.strain, side)) do
+			local good = (e[3] > 0) == e[4]
+			lines[#lines + 1] = effect_text(e[1], e[3], good, good and e[5] or e[6]) .. t.rot_mark
 		end
 		for i = 1, STRAIN_LINES do
 			common.set_context_value("skrolkpl_strain_" .. side .. "_" .. i, lines[i] or "")

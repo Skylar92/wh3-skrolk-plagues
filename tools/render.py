@@ -14,19 +14,17 @@ def _lua_value(v):
 
 
 def lua_rots(rots, positive_good=None, icons=None):
-    """The rot catalogue as a Lua list: id, kind, weight, bundle keys per side/target, effects per side.
+    """The rot catalogue as a Lua list: id, kind, weight, effects per side.
 
     Each shown effect is {effect, scope, value, bigger_is_better, icon, icon_negative}: effects_tables'
     is_positive_value_good (`positive_good`: {effect: bool}; missing -> True) and icon paths (`icons`:
     {effect: (icon, icon_negative)}, under ui/campaign ui/effect_bundles/). The script sums a strain's
     effects and picks colour and icon from the sum.
     """
-    from tools.rots import rot_bundles
     positive_good = positive_good or {}
     icons = icons or {}
     items = []
     for rot in rots:
-        b = rot_bundles(rot)
         def effects(es):
             out = []
             for effect, scope, value in es:
@@ -38,12 +36,8 @@ def lua_rots(rots, positive_good=None, icons=None):
                     _lua_value(effect), _lua_value(scope), _lua_value(value),
                     "true" if bigger_better else "false", _lua_value(path), _lua_value(path_negative)))
             return ", ".join(out)
-        items.append(
-            '{ id = "%s", kind = "%s", weight = %d, ours_force = %s, ours_region = %s, enemy_force = %s, '
-            'enemy_region = %s, show_ours = { %s }, show_enemy = { %s } }' % (
-                rot.id, rot.kind, rot.weight, _lua_value(b["ours"]["force"]), _lua_value(b["ours"]["region"]),
-                _lua_value(b["enemy"]["force"]), _lua_value(b["enemy"]["region"]), effects(rot.ours),
-                effects(rot.enemy)))
+        items.append('{ id = "%s", kind = "%s", weight = %d, show_ours = { %s }, show_enemy = { %s } }' % (
+            rot.id, rot.kind, rot.weight, effects(rot.ours), effects(rot.enemy)))
     return "{\n\t" + ",\n\t".join(items) + ",\n}"
 
 
