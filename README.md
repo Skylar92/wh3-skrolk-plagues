@@ -1,18 +1,24 @@
-# Skrolk's Plagues
+<p align="center">
+  <img src="assets/skrolks_plagues.jpg" alt="Skrolk's Plagues" width="420">
+</p>
 
-*"Thirteen sores, thirteen fevers, one gift for the Great Horned Rat!"*
+<h1 align="center">Skrolk's Plagues</h1>
 
-[MIT License](LICENSE)
+<p align="center"><i>"Thirteen sores, thirteen fevers, one gift for the Great Horned Rat!"</i></p>
+
+<p align="center">
+  <a href="LICENSE">MIT License</a>
+</p>
 
 **Lord Skrolk finally brews his own plagues.** This Total War: WARHAMMER III mod gives a human Clan Pestilens a plague crafting window modelled on Nurgle's: pick three linked symptoms from a grid that reshuffles every turn, set duration, spread and immunity, pay in Skaven food and gold, and release the plague on your own armies and settlements. Your infected forces get the upside, everyone else's get the downside. Every new plague is unstable and may rot in ways nobody, not even Skrolk, can predict.
 
 | | |
 |---|---|
 | **Game** | Total War: WARHAMMER III, update 9.0 (Lords of the End Times) |
-| **Faction** | Clan Pestilens (Lord Skrolk), human player only; the AI keeps the vanilla Skaven plague |
+| **Faction** | Clan Pestilens (Lord Skrolk), human player only; the AI keeps the vanilla Skaven plague (except its Plague Priests, see below) |
 | **Mode** | single player |
 | **Languages** | English (main pack), Russian (translation pack) |
-| **Save-game** | can be added to a running campaign |
+| **Save-game** | a new campaign is recommended; do not remove mid-campaign |
 | **Tests** | 218 automated tests (game tables, campaign script, window and tooltip files, packs) |
 
 ## Crafting a plague
@@ -23,7 +29,7 @@ The **Plagues** button opens Nurgle's window, reworded for Skrolk.
 - **Links:** a plague takes exactly 3 different symptoms. The first must be an open symptom that is not resting; each next one must be linked to one already picked. At the start only *Pestilent Frenzy* is open; every symptom used in a plague opens up as a new starting point.
 - **New layout every turn:** at the start of each Clan Pestilens turn the 18 symptoms are drawn again from the catalogue and placed at random, so the links change and the same plague cannot be farmed. One symptom per layout is **blessed** (its effects doubled). Every layout can make at least one plague.
 - **Resting:** a used symptom rests for 3 turns (Nurgle's rule). There is no other cooldown: make as many plagues per turn as you can pay for.
-- **Slots:** Nurgle's duration (3-6 turns), spread chance (25-55%) and immunity (5-2 turns) slots, levels 0-3.
+- **Slots:** Nurgle's duration (3-6 turns), spread chance (40-70%) and immunity (5-2 turns) slots, levels 0-3.
 - **Price:** 20 Skaven food and 2500 gold, plus 2 food per slot level. While the faction cannot pay, the Infect button is hidden and the window says what is missing.
 - **Targets:** Nurgle's two direct rites, infecting one of your own armies or settlements. From there the plague spreads like any plague: army to army, army to settlement, settlement to settlement, and through battle.
 
@@ -70,13 +76,13 @@ Gifts weigh as much as both bad kinds together.
 ## The Under-Empire
 
 - **Plague Burrows:** a settlement with Clan Pestilens' undercity beneath it spreads plague more easily (+20% infectivity) and catches it again a turn sooner. Updated every turn, and at once when an undercity is dug or lost.
-- **Great Cauldron Pox:** for the human Clan Pestilens the Grand Plague Cauldron no longer spills the vanilla Skaven plague but a strengthened one: Skrolk's vanilla plague at about x1.5, plus +10% weapon strength for us and -6 melee defence and -6 public order for the others. The city above the cauldron is re-infected whenever it is free, until it is razed; elsewhere the pox passes like any plague. Plague Priests of every Clan Pestilens faction spread the same pox.
+- **Great Cauldron Pox:** for the human Clan Pestilens the Grand Plague Cauldron no longer spills the vanilla Skaven plague but a strengthened one: Skrolk's vanilla plague at about x1.5, plus +10% weapon strength for us and -6 melee defence and -6 public order for the others. The city above the cauldron is re-infected whenever it is free, until it is razed; elsewhere the pox passes like any plague. **Plague Priests spread the same pox, for an AI Clan Pestilens too:** the plague a Pestilens Plague Priest spreads is always the Great Cauldron Pox, whoever controls the faction, and there is no way to switch this off.
 
 ## Install
 
 Copy **`skrolk_plagues.pack`** into the game's `data` folder and enable it in the launcher. For Russian, also add **`!skrolk_plagues_ru.pack`**.
 
-Safe to add to a running campaign: vanilla Skaven plagues already on the map run out on their own.
+Start a new campaign with the mod. It can be added to a running one (vanilla Skaven plagues already on the map run out on their own), but do not remove it mid-campaign.
 
 ## Known behaviour
 

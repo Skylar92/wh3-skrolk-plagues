@@ -69,7 +69,7 @@ ROTS = [
     _rot("brittle_bones", "rot", [("wh_main_effect_force_stat_armour", F, -10.0)], ru="Ломкие кости", en="Brittle Bones"),
     _rot("the_shakes", "rot", [("wh_main_effect_force_stat_melee_defence", F, -5.0)], ru="Трясучка", en="The Shakes"),
     _rot("burrow_panic", "rot", [("wh_main_effect_force_stat_leadership", F, -6.0)], ru="Паника в норах", en="Burrow Panic"),
-    _rot("sluggish", "rot", [("wh_main_effect_force_all_campaign_movement_range", F, -10.0)], ru="Вялость", en="Sluggishness"),
+    _rot("sluggish", "rot", [("wh_main_effect_force_all_campaign_movement_range", F, -10.0)], ru="Тяжёлые лапы", en="Sluggishness"),
     _rot("hunger_blight", "rot", [("wh3_main_effect_province_growth_plague", P, -15.0)], ru="Голодный мор", en="Hunger Blight"),
     _rot("gluttony", "rot", [("wh_main_effect_force_all_campaign_upkeep", F, 10.0)], ru="Прожорливость", en="Gluttony"),
     # reverse strain: a minus to us, a different plus to them
