@@ -2,8 +2,8 @@
 
 usage: python -m tools.build [--spike] [--always-rot] [--install]
 
-Writes dist/skrolk_plagues.pack (texts in English) and one translation pack per TRANSLATION_PACKS entry;
---install copies them into the game's data folder. A translation pack holds only the loc file, at the
+Writes dist/skrolk_plagues.pack (texts in English) and one translation pack per TRANSLATION_PACKS entry, each
+with its Workshop preview (the pack's name with .png, tools/preview.py); --install copies them into the game's data folder. A translation pack holds only the loc file, at the
 main pack's path: the game loads it first (its name sorts first) and takes its file.
 The release pack is the default; --spike builds the throwaway probe from plan Task 2.
 --always-rot: a test build where every new plague rots.
@@ -17,6 +17,7 @@ from tools.effects import make_effect_loc, make_effect_tables
 from tools.feature import make_feature_loc, make_feature_tables
 from tools.loc import decode_loc, encode_loc
 from tools.packfile import read_pack, write_pack
+from tools.preview import make_preview, save_preview
 from tools.paths import GAME_DATA, ROOT, SCHEMA
 from tools.render import render_core
 from tools.rots import ROTS, make_rot_loc, make_rot_tables
@@ -111,20 +112,26 @@ def build(out_path, variant="release", lang="en", always_rot=False):
     return files
 
 
+def preview_name(pack_name):
+    return pack_name.replace(".pack", ".png")
+
+
 def main(argv, dist=ROOT / "dist"):
     variant = "spike" if "--spike" in argv else "release"
     always_rot = "--always-rot" in argv  # test build: every new plague rots
     dist.mkdir(exist_ok=True)
     build(dist / PACK_NAME, variant=variant, always_rot=always_rot)
     print("built %s (%s%s)" % (dist / PACK_NAME, variant, ", always rot" if always_rot else ""))
-    names = [PACK_NAME]
+    save_preview(make_preview(), dist / preview_name(PACK_NAME))
+    names = [PACK_NAME, preview_name(PACK_NAME)]
     if variant == "release":
         for lang, name in TRANSLATION_PACKS.items():
             build_translation(dist / name, lang)
+            save_preview(make_preview(lang), dist / preview_name(name))
             print("built %s (%s)" % (dist / name, lang))
-            names.append(name)
+            names += [name, preview_name(name)]
     if "--install" in argv:
-        for name in names:
+        for name in names:  # the launcher wants each preview next to its pack
             shutil.copyfile(dist / name, GAME_DATA / name)
             print("installed %s" % (GAME_DATA / name))
 

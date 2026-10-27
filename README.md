@@ -100,7 +100,7 @@ python -m pytest
 python -m tools.build
 ```
 
-`python -m tools.build` writes `dist/skrolk_plagues.pack` and `dist/!skrolk_plagues_ru.pack`; `--install` also copies them into the game's `data` folder (close the game first). Game path: `tools/paths.py`.
+`python -m tools.build` writes `dist/skrolk_plagues.pack` and `dist/!skrolk_plagues_ru.pack`, each with its 512x512 Workshop preview of the same name (`.png`, from `assets/` by `tools/preview.py`); `--install` also copies them into the game's `data` folder (close the game first). Game path: `tools/paths.py`.
 
 ### How it works
 
