@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from tools.build import (CORE_SCRIPT, PACK_NAME, SPIKE_SCRIPT, TABLE_FILE, TRANSLATION_PACKS, build,
+from tools.build import (CORE_SCRIPT, LOC_PATH, PACK_NAME, SPIKE_SCRIPT, TABLE_FILE, TRANSLATION_PACKS, build,
                          build_translation)
 from tools.dbtable import decode_table, reference_columns
 from tools.loc import decode_loc
@@ -34,7 +34,7 @@ def table(pack, schema, name):
 
 def test_spike_pack_has_tables_loc_and_script(spike, schema):
     assert table(spike, schema, "campaign_group_members_tables").rows
-    assert dict(decode_loc(spike[f"text/db/{TABLE_FILE}.loc"]))
+    assert dict(decode_loc(spike[LOC_PATH]))
     assert b"skrolkpl" in spike[SPIKE_SCRIPT]
 
 
@@ -60,7 +60,7 @@ def test_release_script_lists_the_catalogue(release):
 
 
 def test_release_loc_names_every_symptom(release):
-    loc = dict(decode_loc(release[f"text/db/{TABLE_FILE}.loc"]))
+    loc = dict(decode_loc(release[LOC_PATH]))
     for key in symptom_keys():
         assert loc.get("plague_components_localised_name_" + key), key
 
@@ -113,7 +113,7 @@ def test_release_has_no_duplicate_keys(release, schema):
 
 
 def test_main_pack_speaks_english(release):
-    loc = dict(decode_loc(release["text/db/%s.loc" % TABLE_FILE]))
+    loc = dict(decode_loc(release[LOC_PATH]))
     assert loc["plague_components_localised_name_skrolkpl_sym_black_death"] == "Black Death"
 
 
@@ -122,9 +122,9 @@ def test_russian_translation_pack_replaces_the_loc_file(release, tmp_path):
     path = tmp_path / TRANSLATION_PACKS["ru"]
     build_translation(path, "ru")
     pack = read_pack(path)
-    assert list(pack) == ["text/db/%s.loc" % TABLE_FILE]
-    ru = dict(decode_loc(pack["text/db/%s.loc" % TABLE_FILE]))
-    en = dict(decode_loc(release["text/db/%s.loc" % TABLE_FILE]))
+    assert list(pack) == [LOC_PATH]
+    ru = dict(decode_loc(pack[LOC_PATH]))
+    en = dict(decode_loc(release[LOC_PATH]))
     assert set(ru) == set(en)
     assert ru["plague_components_localised_name_skrolkpl_sym_black_death"] == "Чёрная смерть"
     assert TRANSLATION_PACKS["ru"] < PACK_NAME  # sorts first, so it loads first
@@ -149,3 +149,9 @@ def test_release_ships_the_plague_window_script(release):
 def test_release_ships_the_plague_tooltip(release):
     from tools.tooltip import TOOLTIP_PATH
     assert b"skrolkpl_strain_line_1" in release[TOOLTIP_PATH]
+
+
+def test_loc_file_sorts_before_vanilla():
+    # the first loaded line of a key wins and loc files load by path: ours must come before vanilla's
+    # text/db/campaign_localised_strings__.loc (local_en) and text/localisation__.loc (local_ru)
+    assert LOC_PATH < "text/db/a" and LOC_PATH < "text/localisation__.loc"

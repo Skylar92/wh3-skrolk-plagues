@@ -36,7 +36,7 @@ SPIKE_SCRIPT = "script/campaign/mod/skrolkpl_spike.lua"
 CORE_SCRIPT = "script/campaign/mod/skrolkpl.lua"
 VARIANTS = ("spike", "release")
 LANGS = ("en", "ru")
-LOC_PATH = f"text/db/{TABLE_FILE}.loc"
+LOC_PATH = f"text/db/!{TABLE_FILE}.loc"  # "!" sorts first: our lines win over vanilla keys (first one loaded wins)
 TRANSLATION_PACKS = {"ru": "!skrolk_plagues_ru.pack"}
 
 
