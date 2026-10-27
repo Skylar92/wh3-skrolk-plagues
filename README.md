@@ -36,7 +36,7 @@ The **Plagues** button opens Nurgle's window, reworded for Skrolk.
 | Violent | +10% missile resistance | -20% ammunition |
 | Necrotising | +4 melee attack | -4 melee attack |
 | Sweating | +10% weapon strength | -10% weapon strength |
-| Rotting | guerrilla deployment | -15% speed |
+| Rotting | vanguard deployment | -15% speed |
 | Feverish | +5 winds of magic | -5 winds of magic |
 | Acrid | -10% spell cost | +10% spell cost |
 | Liquifying | +10% replenishment | plague attrition |
