@@ -10,12 +10,12 @@
   <a href="LICENSE">MIT License</a>
 </p>
 
-**Lord Skrolk finally brews his own plagues.** This Total War: WARHAMMER III mod gives a human Clan Pestilens a plague crafting window modelled on Nurgle's: pick three linked symptoms from a grid that reshuffles every turn, set duration, spread and immunity, pay in Skaven food and gold, and release the plague on your own armies and settlements. Your infected forces get the upside, everyone else's get the downside. Every new plague is unstable and may rot in ways nobody, not even Skrolk, can predict.
+**Lord Skrolk finally brews his own plagues.** This Total War: WARHAMMER III mod gives Clan Pestilens, when you play it, a plague crafting window modelled on Nurgle's: pick three linked symptoms from a grid that reshuffles every turn, set duration, spread and immunity, pay in Skaven food and gold, and release the plague on your own armies and settlements. Your infected forces get the upside, everyone else's get the downside. Every new plague is unstable and may rot in ways nobody, not even Skrolk, can predict.
 
 | | |
 |---|---|
 | **Game** | Total War: WARHAMMER III, update 9.0 (Lords of the End Times) |
-| **Faction** | Clan Pestilens (Lord Skrolk), human player only; the AI keeps the vanilla Skaven plague (except its Plague Priests, see below) |
+| **Faction** | Clan Pestilens (Lord Skrolk), when played by you; the AI keeps the vanilla Skaven plague (except its Plague Priests, see below) |
 | **Mode** | single player |
 | **Languages** | English (main pack), Russian (translation pack) |
 | **Save-game** | a new campaign is recommended; do not remove mid-campaign |
@@ -76,7 +76,7 @@ Gifts weigh as much as both bad kinds together.
 ## The Under-Empire
 
 - **Plague Burrows:** a settlement with Clan Pestilens' undercity beneath it spreads plague more easily (+20% infectivity) and catches it again a turn sooner. Updated every turn, and at once when an undercity is dug or lost.
-- **Great Cauldron Pox:** for the human Clan Pestilens the Grand Plague Cauldron no longer spills the vanilla Skaven plague but a strengthened one: Skrolk's vanilla plague at about x1.5, plus +10% weapon strength for us and -6 melee defence and -6 public order for the others. The city above the cauldron is re-infected whenever it is free, until it is razed; elsewhere the pox passes like any plague. **Plague Priests spread the same pox, for an AI Clan Pestilens too:** the plague a Pestilens Plague Priest spreads is always the Great Cauldron Pox, whoever controls the faction, and there is no way to switch this off.
+- **Great Cauldron Pox:** when you play Clan Pestilens, the Grand Plague Cauldron no longer spills the vanilla Skaven plague but a strengthened one: Skrolk's vanilla plague at about x1.5, plus +10% weapon strength for us and -6 melee defence and -6 public order for the others. The city above the cauldron is re-infected whenever it is free, until it is razed; elsewhere the pox passes like any plague. **Plague Priests spread the same pox, for an AI Clan Pestilens too:** the plague a Pestilens Plague Priest spreads is always the Great Cauldron Pox, whoever controls the faction, and there is no way to switch this off.
 
 ## Install
 
